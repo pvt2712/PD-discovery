@@ -1,0 +1,25 @@
+[project]
+name = "escd-side-avici"
+version = "0.1.0"
+description = "Side environment for workers/avici.py: AVICI (avici 1.0.7; Lorch et al. NeurIPS 2022, arXiv 2205.12934), pretrained scm-v0. CPU only."
+requires-python = "==3.11.*"
+dependencies = [
+    "avici==1.0.7",
+    # avici/pretrain.py imports jax.sharding.PositionalSharding (removed in later JAX); pin a mid-2024 JAX stack
+    "jax[cpu]==0.4.30",
+    "jaxlib==0.4.30",
+    "dm-haiku==0.0.13",
+    "optax==0.2.3",
+    "chex==0.1.86",
+    "numpy<2",
+]
+
+[tool.uv]
+package = false
+# avici declares training/notebook-only dependencies that inference never imports (tensorflow in avici/utils/tf.py,
+# tensorflow-datasets in avici/data.py, jupyter). They are dropped with a never-true marker to keep the env lean.
+override-dependencies = [
+    "tensorflow; sys_platform == 'never'",
+    "tensorflow-datasets; sys_platform == 'never'",
+    "jupyter; sys_platform == 'never'",
+]

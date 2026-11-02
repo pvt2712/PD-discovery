@@ -1,0 +1,13 @@
+[project]
+name = "escd-side-sdcd"
+version = "0.1.0"
+description = "Side environment for workers/sdcd.py: SDCD (sdcd 0.1.4; Nazaret et al. ICML 2024, arXiv 2311.10263). CPU only."
+requires-python = "==3.11.*"
+dependencies = [
+    "sdcd==0.1.4",
+    # wandb<0.16 (an sdcd requirement, imported at sdcd import time) needs pkg_resources, removed from newer setuptools
+    "setuptools<81",
+]
+
+[tool.uv]
+package = false

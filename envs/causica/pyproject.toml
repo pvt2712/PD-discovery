@@ -1,0 +1,11 @@
+[project]
+name = "escd-side-causica"
+version = "0.1.0"
+description = "Side environment for workers/deci.py: DECI (causica 0.4.6; Geffner et al. 2022, arXiv 2202.02195). CPU only."
+requires-python = "==3.10.*"
+dependencies = [
+    "causica==0.4.6",
+]
+
+[tool.uv]
+package = false

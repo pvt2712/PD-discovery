@@ -1,0 +1,115 @@
+# The core causal map of the levodopa-escalation decision (escalation-study-v2, 29 October 2026).
+#
+# Derived from the evidence-audited expert map of escalation-study v1
+# (docs/expert_dag/levodopa_dose_escalation_evidence_audited.yaml, version 2.0-evidence-audited, 15 October 2026:
+# 28 nodes, 36 arrows) by five rules fixed before any v2 estimate (DESIGN.md §3):
+#   R1 keep the decision and every arrow into it whose evidence locator cites a guideline (grade G1/G2, or E with a
+#      guideline locator);
+#   R2 a guideline-named factor with no PPMI proxy becomes an explicit latent node, never deleted;
+#   R3 a symptom's level and its change since 5-18 months earlier form one node (v1 could not separate them: 11 of 67
+#      edge-proxies were level/change mixes);
+#   R4 the post-decision arrows cited by randomised evidence (ELLDOPA, STRIDE-PD via AAN 2021) define the outcomes;
+#   R5 the disease-course nodes of v1 (graded M, R or E, not by a guideline) collapse into one latent node,
+#      'disease progression', the source of confounding by indication; co-interventions (adjuncts, amantadine,
+#      optimising delivery) leave the core map (they are other strategies, deferred).
+# Grades as in v1 (provenance, not effect size): G1 guideline recommendation; G2 clinical inference from guideline
+# content; R empirical research; E expert reasoning with the locator given; M mechanism. Two grades are added for the
+# v2 analyses and never claimed as guideline content: N natural-history carry-over of a measured state to its own
+# 12-month value; H a hidden-confounding hypothesis that the sensitivity analysis (Q4) quantifies.
+
+name: levodopa_escalation_core_map
+version: 1.0
+derived_from: escalation-study/docs/expert_dag/levodopa_dose_escalation_evidence_audited.yaml (2.0-evidence-audited)
+sources:
+  AAN_2021: Pringsheim T et al. Practice guideline summary - dopaminergic therapy for motor symptoms in early Parkinson disease. Neurology 2021.
+  NICE_NG71: NICE guideline NG71, Parkinson's disease in adults (2017), recommendations.
+  MDS_2025: MDS evidence-based medicine review of treatments for motor fluctuations (2025).
+  DGN_2024: Höglinger G et al. Diagnosis and treatment of Parkinson's disease (German Society of Neurology S2k guideline). Neurol Res Pract 2024;6:30.
+  ELLDOPA_2004: Fahn S et al. Levodopa and the progression of Parkinson's disease. NEJM 2004.
+  STRIDE_PD_2013: Warren Olanow C et al. Factors predictive of the development of levodopa-induced dyskinesia and wearing-off in Parkinson's disease. Mov Disord 2013.
+
+nodes:
+  - {id: motor_control, label: Inadequate motor control, role: trigger, measured: true, x: 4.0, y: 7.4,
+     proxy: "ON-state MDS-UPDRS III, level and change since 5-18 months earlier", columns: [h_motor_on, h_d_motor_on], v1_nodes: [inadequate, nonaxial]}
+  - {id: daily_living, label: Impact on daily living, role: trigger, measured: true, x: 4.0, y: 6.4,
+     proxy: "MDS-UPDRS Part II, level and change", columns: [h_adl, h_d_adl], v1_nodes: [adl]}
+  - {id: wearing_off, label: Wearing-off / OFF time, role: trigger, measured: true, x: 4.0, y: 5.4,
+     proxy: "MDS-UPDRS 4.3-4.4, level and change", columns: [h_fluct, h_d_fluct], v1_nodes: [wearing_off]}
+  - {id: dose_in_force, label: Levodopa dose in force, role: context, measured: true, x: 4.0, y: 4.4,
+     proxy: "levodopa LEDD in force at the assessment (dated log) and at the visit", columns: [A0, h_ldopa], v1_nodes: [prior_dose]}
+  - {id: dyskinesia, label: Existing dyskinesia, role: brake, measured: true, x: 4.0, y: 3.4,
+     proxy: "MDS-UPDRS 4.1-4.2, level and change", columns: [h_dysk, h_d_dysk], v1_nodes: [dysk_existing]}
+  - {id: hallucinations, label: Hallucinations / psychosis, role: brake, measured: true, x: 4.0, y: 2.4,
+     proxy: "MDS-UPDRS 1.2", columns: [h_hall], v1_nodes: [hallucinations]}
+  - {id: orthostatic, label: Orthostatic hypotension, role: brake, measured: true, x: 4.0, y: 1.4,
+     proxy: "systolic drop on standing", columns: [h_oh], v1_nodes: [orthostasis]}
+  - {id: sleepiness, label: Excessive sleepiness, role: brake, measured: true, x: 4.0, y: 0.4,
+     proxy: "Epworth Sleepiness Scale", columns: [h_ess], v1_nodes: [sleepiness]}
+  - {id: escalate, label: ESCALATE, role: decision, measured: true, x: 7.3, y: 3.9,
+     proxy: "levodopa LEDD up >= 100 mg/day within 3 months, vs no such increase within 6 months", columns: [E], v1_nodes: [increase]}
+  - {id: daily_function_12m, label: Daily function at 12 months, role: outcome, measured: true, x: 10.6, y: 5.6,
+     proxy: "MDS-UPDRS Part II 12 months after the assessment", columns: [y12_adl], v1_nodes: [improve]}
+  - {id: complications_12m, label: Motor complications at 12 months, role: outcome, measured: true, x: 10.6, y: 2.2,
+     proxy: "MDS-UPDRS Part IV 12 months after the assessment", columns: [y12_cx], v1_nodes: [dysk_future, adverse_future]}
+  - {id: progression, label: Disease progression, role: latent, measured: false, x: 0.9, y: 6.4,
+     proxy: "none: partly reflected by the stage and severity measures (an off-guideline block)",
+     v1_nodes: [progression, nonaxial, axial, cognitive, disease_duration, levodopa_duration]}
+  - {id: unrecorded_reasons, label: Unrecorded guideline reasons, role: latent, measured: false, x: 7.3, y: 0.7,
+     proxy: "none: patient priorities and goals (NICE NG71 1.3.10), nausea or intolerance (AAN 2021 Rec 2c), food and absorption (AAN 2021 Rec 2e), expected levodopa responsiveness (AAN 2021 Rec 2c)",
+     v1_nodes: [goals, nausea, meal_absorption, ldopa_response]}
+
+arrows:
+  # the decision: guideline-graded reasons (R1)
+  - {from: motor_control, to: escalate, sign: "+", grade: G2, v1: [e15], locator: "AAN 2021 Recs 2b-2c (Level B)"}
+  - {from: daily_living, to: escalate, sign: "+", grade: G2, v1: [e16], locator: "NICE NG71 1.3.5; AAN 2021 Rec 2b"}
+  # locator revised 29 October 2026 after the clinical-evidence search (DESIGN.md §11): AAN 2021 Rec 2c and DGN 2024 titrate
+  # levodopa against fluctuations; NICE NG71 and MDS 2025 answer them with adjuncts. Grade and analyses unchanged.
+  - {from: wearing_off, to: escalate, sign: "+", grade: E, v1: [e18], locator: "AAN 2021 Rec 2c; DGN 2024 (NICE NG71 1.3.9-1.3.10, MDS 2025: adjuncts instead)"}
+  - {from: wearing_off, to: motor_control, sign: "+", grade: G2, v1: [e11], locator: "NICE NG71 1.3.9-1.3.10"}
+  - {from: dyskinesia, to: escalate, sign: "-", grade: G2, v1: [e21], locator: "AAN 2021 Recs 2b-2d; NICE NG71 1.3.9"}
+  - {from: hallucinations, to: escalate, sign: "-", grade: G2, v1: [e22], locator: "NICE NG71 1.5.15; AAN 2021 Rec 2c"}
+  - {from: orthostatic, to: escalate, sign: "-", grade: G2, v1: [e23], locator: "AAN 2021 Rec 2c (Level B)"}
+  - {from: sleepiness, to: escalate, sign: "-", grade: G2, v1: [e24], locator: "AAN 2021 Rec 2c (Level B)"}
+  - {from: dose_in_force, to: escalate, sign: context, grade: E, v1: [e20], locator: "AAN 2021 Recs 2b and 2d"}
+  - {from: dose_in_force, to: dyskinesia, sign: "+", grade: R, v1: [e06], locator: "AAN 2021 Rec 2d; STRIDE-PD 2013; ELLDOPA 2004"}
+  - {from: unrecorded_reasons, to: escalate, sign: context, grade: G2, v1: [e19, e25, e17, e12], locator: "NICE NG71 1.3.10; AAN 2021 Recs 2c and 2e"}
+  # the expected consequences (R4)
+  - {from: escalate, to: daily_function_12m, sign: "better", grade: R, v1: [e31], locator: "ELLDOPA 2004; AAN 2021 Rec 2b"}
+  - {from: escalate, to: complications_12m, sign: "+", grade: R, v1: [e32, e33], locator: "ELLDOPA 2004; STRIDE-PD 2013; AAN 2021 Recs 2c-2d"}
+  # confounding by indication: progression drives the reasons and the outcomes (R5)
+  - {from: progression, to: motor_control, sign: "+", grade: M, v1: [e01, e08]}
+  - {from: progression, to: daily_living, sign: "+", grade: M, v1: [e02, e09, e10]}
+  - {from: progression, to: wearing_off, sign: "+", grade: M, v1: [e04, e05]}
+  - {from: progression, to: hallucinations, sign: "+", grade: M, v1: [e14]}
+  - {from: progression, to: daily_function_12m, sign: "+", grade: M}
+  - {from: progression, to: complications_12m, sign: "+", grade: M}
+  # natural-history carry-over of a measured state (added for v2; not guideline content)
+  - {from: daily_living, to: daily_function_12m, sign: "+", grade: N}
+  - {from: wearing_off, to: complications_12m, sign: "+", grade: N}
+  - {from: dyskinesia, to: complications_12m, sign: "+", grade: N}
+  # hidden-confounding hypotheses quantified in Q4 (added for v2; not guideline content)
+  - {from: unrecorded_reasons, to: daily_function_12m, sign: "?", grade: H}
+  - {from: unrecorded_reasons, to: complications_12m, sign: "?", grade: H}
+
+# Measured factors that no guideline names as a reason to escalate or to hold. They enter the adjustment set, and the
+# confounding analyses (Q3) ask how much of the raw-versus-causal gap they explain: the data-revealed confounders.
+off_guideline_blocks:
+  treatment_history:
+    label: Treatment history (prescribing inertia)
+    columns: [h_t_ldopa, h_months_since_ldopa_change, h_cum_ldopa, h_da, h_maob, h_ama]
+  stage_severity:
+    label: Disease stage and motor severity
+    columns: [h_hy, h_motor, h_d_motor, h_motor_na, h_d_motor_na, h_axial, h_se, h_d_se, h_cx, dur0, dat0]
+  person_nonmotor:
+    label: Person and non-motor profile
+    columns: [age, male, educ, apoe4, h_cog, h_dep, h_aut, h_rbd, h_icd, h_weight, trait0, t, h_d_months]
+
+# The six analysis blocks of Q3 (confounding decomposition) and Q4 (benchmarks): three named by the guidelines,
+# three not. Together they are the 43 pre-decision covariates of the adjustment set.
+analysis_blocks:
+  guideline_triggers: {label: "Guideline triggers (motor control, daily living, wearing-off)", nodes: [motor_control, daily_living, wearing_off], guideline: true}
+  guideline_brakes: {label: "Guideline brakes (dyskinesia, hallucinations, orthostatic drop, sleepiness)", nodes: [dyskinesia, hallucinations, orthostatic, sleepiness], guideline: true}
+  dose_in_force: {label: "Dose in force", nodes: [dose_in_force], guideline: true}
+  treatment_history: {label: "Treatment history (prescribing inertia)", off_guideline: treatment_history, guideline: false}
+  stage_severity: {label: "Disease stage and motor severity", off_guideline: stage_severity, guideline: false}
+  person_nonmotor: {label: "Person and non-motor profile", off_guideline: person_nonmotor, guideline: false}

@@ -1,0 +1,41 @@
+[project]
+name = "escalation-discovery"
+version = "0.1.0"
+description = "Paper 2, experiment 1: which causal-discovery methods can be trusted on PPMI for the levodopa-escalation map (Arm A: recoverability on PPMI-like simulations; Arm B: agreement, stability and negative controls on PPMI)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=1.26", "pandas>=2.2", "scipy>=1.12", "scikit-learn>=1.4", "networkx>=3.2", "pyyaml>=6.0.3", "joblib>=1.3",
+    "matplotlib>=3.8",
+    "causal-learn==0.1.4.8",     # PC, FCI, BOSS; the clustered GCM tests register into it
+    "dagma==1.1.1",              # DAGMA-linear (control)
+    "tigramite==5.2.10.1",       # J-PCMCI+ (Günther, Ninad & Runge, UAI 2023)
+    "JPype1>=1.5",               # bridge to Tetrad 7.6.10 (tools/tetrad-gui-7.6.10-launch.jar)
+]
+
+[project.scripts]
+escd = "escalation_discovery.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/escalation_discovery"]
+
+[tool.escalation_discovery]
+raw = "../PPMI/raw"
+derived = "data/derived"
+results = "results"
+tetrad_jar = "tools/tetrad-gui-7.6.10-launch.jar"
+java_home = "/opt/homebrew/opt/openjdk@21"
+# PROTOCOL.md §11: no command touches PPMI participant data while this is false. Set it to true only after the
+# protocol has been approved; the date of the change goes to PROTOCOL.md §12 (amendments).
+ppmi_runs_approved = true
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: end-to-end and oracle tests (deselect with -m 'not slow')"]

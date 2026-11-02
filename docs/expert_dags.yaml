@@ -1,0 +1,2041 @@
+dags:
+- name: v1_guideline_minimal
+  description: 'Only edges with GUIDELINE or STRONG support. Treatment decisions follow NICE NG71 / AAN 2021 / MDS 2018: dose escalates on motor severity, ADL impact and complications; agonists are avoided
+    with older age, cognitive impairment, sleepiness and impulse-control symptoms. No pathophysiology beyond the motor chain; non-motor symptoms are left unconnected except for known drug effects.
+
+    '
+  edges:
+  - from: motor
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5; AAN 2021 2c; Fox 2018
+  - from: adl
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5 (QoL/ADL impact)
+  - from: cx
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2b/2c (titrate; lowest dose for dyskinesia)
+  - from: motor
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6; AAN 2021 1c
+  - from: cx
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10 (adjunct for fluctuations)
+  - from: age
+    to: da
+    grade: GUIDELINE
+    src: AAN 2021 1d (>70 y)
+  - from: cog
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a (cognitive impairment)
+  - from: ess
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a (EDS)
+  - from: icd
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a (ICD history)
+  - from: ldopa
+    to: cx
+    kind: same
+    grade: STRONG
+    src: PMID 23630119 STRIDE-PD; 15590952 ELLDOPA; AAN 2021 2d
+  - from: dur0
+    to: cx
+    grade: STRONG
+    src: PMID 25034897 Cilia 2014 (disease duration, not years on levodopa)
+  - from: da
+    to: icd
+    kind: same
+    grade: STRONG
+    src: PMID 20457959 DOMINION; 29925549 DIGPD
+  - from: da
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 26085603 ParkWest; 28554959 PPMI; 33637423 meta
+  - from: ldopa
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 33637423 (total LEDD +141 mg in EDS)
+  - from: ldopa
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 15590952 ELLDOPA; 24928805 PD MED (ADL/mobility benefit)
+  - from: motor
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474 Shulman; 24711047 NET-PD; 29662921 PPMI
+  - from: adl
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 15086662 Weintraub 2004
+  - from: motor
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474 (independence lost at UPDRS 30-40 / H&Y III)
+  - from: age
+    to: motor
+    grade: STRONG
+    src: PMID 23345637 CARPA; 26865518 PPMI
+  - from: dat0
+    to: motor
+    grade: MODERATE
+    src: PMID 22976926 PRECEPT (milestones); 29572948 (rates contested)
+  - from: dur0
+    to: motor
+    grade: STRONG
+    src: disease duration at baseline (definitional)
+  - from: age
+    to: cog
+    grade: STRONG
+    src: PMID 27866858 Schrag 2017 PPMI; 23781007 CamPaIGN
+  - from: apoe4
+    to: cog
+    grade: STRONG
+    src: PMID 30405900 meta; 35106798 Szwedo 2022
+  - from: educ
+    to: cog
+    grade: MODERATE
+    src: PMID 24034887 Hindle 2014 (test scores, not dementia)
+  - from: cog
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 23172765 Leroi; 20310053 Rosenthal; 23345637
+  - from: male
+    to: rbd
+    grade: STRONG
+    src: PMID 37422999 Li 2023 meta
+  - from: male
+    to: cog
+    grade: STRONG
+    src: PMID 33002231 Iwaki 2021; 25171928 Anang 2014
+  - from: male
+    to: ess
+    grade: STRONG
+    src: PMID 33637423 (male OR 1.50)
+- name: v2_pathophysiology
+  description: 'V1 plus the body-first / brain-first hypothesis (Borghammer & Van Den Berge 2019; Horsager 2020): RBD, autonomic dysfunction and depression share a stable latent non-motor trait rather than
+    causing each other; the trait and baseline DaT drive progression and cognitive decline. Orthostatic BP drop arises from autonomic failure. RBD -> DaT is deliberately absent (Horsager 2020: equal putaminal
+    loss). The latent node is tested through its implied independences among its children.
+
+    '
+  latent:
+  - trait
+  edges:
+  - from: motor
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5; AAN 2021 2c
+  - from: adl
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5
+  - from: cx
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2b/2c
+  - from: motor
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6; AAN 2021 1c
+  - from: cx
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10
+  - from: age
+    to: da
+    grade: GUIDELINE
+    src: AAN 2021 1d
+  - from: cog
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+  - from: ess
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a
+  - from: icd
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+  - from: ldopa
+    to: cx
+    kind: same
+    grade: STRONG
+    src: PMID 23630119; 15590952; AAN 2021 2d
+  - from: dur0
+    to: cx
+    grade: STRONG
+    src: PMID 25034897
+  - from: da
+    to: icd
+    kind: same
+    grade: STRONG
+    src: PMID 20457959; 29925549
+  - from: da
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 26085603; 28554959; 33637423
+  - from: ldopa
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 33637423
+  - from: ldopa
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 15590952; 24928805
+  - from: motor
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 24711047; 29662921
+  - from: adl
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 15086662
+  - from: motor
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474
+  - from: age
+    to: motor
+    grade: STRONG
+    src: PMID 23345637; 26865518
+  - from: dat0
+    to: motor
+    grade: MODERATE
+    src: PMID 22976926
+  - from: dur0
+    to: motor
+    grade: STRONG
+    src: definitional
+  - from: age
+    to: cog
+    grade: STRONG
+    src: PMID 27866858; 23781007
+  - from: apoe4
+    to: cog
+    grade: STRONG
+    src: PMID 30405900; 35106798
+  - from: educ
+    to: cog
+    grade: MODERATE
+    src: PMID 24034887
+  - from: cog
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 23172765; 20310053
+  - from: male
+    to: rbd
+    grade: STRONG
+    src: PMID 37422999
+  - from: male
+    to: cog
+    grade: STRONG
+    src: PMID 33002231; 25171928
+  - from: male
+    to: ess
+    grade: STRONG
+    src: PMID 33637423
+  - from: trait
+    to: rbd
+    grade: STRONG
+    src: PMID 31498132 Borghammer 2019; 32830221 Horsager 2020; 29102236 Kim 2018
+  - from: trait
+    to: aut
+    grade: STRONG
+    src: as above
+  - from: trait
+    to: dep
+    grade: MODERATE
+    src: PMID 17646625 Verbaan 2007; 19514014 PRIAMO (co-occurrence)
+  - from: trait
+    to: ess
+    grade: MODERATE
+    src: PMID 28554959 Amara 2017 (EDS tracks autonomic/depression/RBD)
+  - from: trait
+    to: cog
+    grade: STRONG
+    src: PMID 22322798 Postuma 2012; 25171928 Anang; 30089615 Pagano 2018 (RBD -> cognitive decline)
+  - from: trait
+    to: motor
+    grade: MODERATE
+    src: PMID 30089615 (RBD -> motor progression HR 1.37); 28655059 De Pablo-Fernandez 2017
+  - from: aut
+    to: oh
+    kind: same
+    grade: STRONG
+    src: PMID 29278286 Merola 2018 (cardiovascular domain)
+  - from: oh
+    to: cog
+    kind: lag
+    grade: CONTESTED
+    src: PMID 25171928; 27613160 Udow 2016 (hypoperfusion vs shared pathology)
+  - from: dat0
+    to: cog
+    grade: MODERATE
+    src: PMID 22976926 PRECEPT (bottom vs top quartile OR 3.3)
+- name: v3_nonmotor_disability
+  description: 'V1 plus the clinical argument that non-motor symptoms drive disability beyond motor severity: depression, cognition and autonomic dysfunction have direct lagged effects on ADL and independence
+    (Schrag 2000; Weintraub 2004; Merola 2018; Longardner 2022); mood raises the risk of impulse-control disorders (Marin-Lahoz 2019); ADL impairment feeds back on mood and daytime sleepiness (ParkWest
+    reverse direction). No latent trait: non-motor symptoms are linked by directed edges where cohort evidence exists, otherwise left unconnected.
+
+    '
+  edges:
+  - from: motor
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5; AAN 2021 2c
+  - from: adl
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5
+  - from: cx
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2b/2c
+  - from: motor
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6; AAN 2021 1c
+  - from: cx
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10
+  - from: age
+    to: da
+    grade: GUIDELINE
+    src: AAN 2021 1d
+  - from: cog
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+  - from: ess
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a
+  - from: icd
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+  - from: ldopa
+    to: cx
+    kind: same
+    grade: STRONG
+    src: PMID 23630119; 15590952; AAN 2021 2d
+  - from: dur0
+    to: cx
+    grade: STRONG
+    src: PMID 25034897
+  - from: da
+    to: icd
+    kind: same
+    grade: STRONG
+    src: PMID 20457959; 29925549
+  - from: da
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 26085603; 28554959; 33637423
+  - from: ldopa
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 33637423
+  - from: ldopa
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 15590952; 24928805
+  - from: motor
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 24711047; 29662921
+  - from: adl
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 15086662
+  - from: motor
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474
+  - from: age
+    to: motor
+    grade: STRONG
+    src: PMID 23345637; 26865518
+  - from: dat0
+    to: motor
+    grade: MODERATE
+    src: PMID 22976926
+  - from: dur0
+    to: motor
+    grade: STRONG
+    src: definitional
+  - from: age
+    to: cog
+    grade: STRONG
+    src: PMID 27866858; 23781007
+  - from: apoe4
+    to: cog
+    grade: STRONG
+    src: PMID 30405900; 35106798
+  - from: educ
+    to: cog
+    grade: MODERATE
+    src: PMID 24034887
+  - from: cog
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 23172765; 20310053
+  - from: male
+    to: rbd
+    grade: STRONG
+    src: PMID 37422999
+  - from: male
+    to: cog
+    grade: STRONG
+    src: PMID 33002231; 25171928
+  - from: male
+    to: ess
+    grade: STRONG
+    src: PMID 33637423
+  - from: dep
+    to: adl
+    kind: lag
+    grade: STRONG
+    src: PMID 10945804 Schrag 2000; 15086662 Weintraub 2004
+  - from: dep
+    to: se
+    kind: lag
+    grade: STRONG
+    src: PMID 15086662; 21264941 Martinez-Martin 2011
+  - from: aut
+    to: adl
+    kind: lag
+    grade: STRONG
+    src: PMID 29278286 Merola 2018 (12-mo ADL decline)
+  - from: aut
+    to: se
+    kind: lag
+    grade: STRONG
+    src: PMID 35708788 Longardner 2022; 28655059
+  - from: cog
+    to: adl
+    kind: lag
+    grade: STRONG
+    src: PMID 23172765 Leroi 2012
+  - from: aut
+    to: oh
+    kind: same
+    grade: STRONG
+    src: PMID 29278286
+  - from: oh
+    to: adl
+    kind: lag
+    grade: MODERATE
+    src: PMID 35708788 (OH -> falls, ADL impairment)
+  - from: rbd
+    to: cog
+    kind: lag
+    grade: STRONG
+    src: PMID 22322798; 25171928; 30089615
+  - from: rbd
+    to: motor
+    kind: lag
+    grade: MODERATE
+    src: PMID 30089615 (HR 1.37)
+  - from: dep
+    to: icd
+    kind: lag
+    grade: STRONG
+    src: PMID 31415102 Marin-Lahoz 2019 (HR 1.96)
+  - from: adl
+    to: dep
+    kind: lag
+    grade: MODERATE
+    src: PMID 10945804 (disability -> mood)
+  - from: adl
+    to: ess
+    kind: lag
+    grade: WEAK
+    src: PMID 26085603 ParkWest (UPDRS-ADL -> EDS)
+  - from: oh
+    to: cog
+    kind: lag
+    grade: CONTESTED
+    src: PMID 25171928; 27613160
+  - from: ldopa
+    to: oh
+    kind: same
+    grade: CONTESTED
+    src: PMID 31527282 Hiorth 2019 (OR 1.16/100 mg); 34964392 RCT meta null for DA
+- name: v4_guideline_treatment
+  node_set: extended
+  description: 'Core progression DAG recommended in docs/expert_dag_evidence.md: v2''s latent non-motor trait backbone, with (i) motor complications split into wearing-off (fluct) and dyskinesia (dysk),
+    which have different causes and treatments; (ii) MAO-B inhibitors and amantadine as separate treatment classes beside levodopa and agonists (COMT, 87 exposed, and anticholinergics, 8, are too sparse);
+    (iii) hallucinations, anxiety, axial impairment and BMI as nodes, because they are treatment contraindications, dyskinesia risk factors or drivers of function that the guidelines name explicitly. Treatment
+    *actions* (initiate/add/switch) and 3-monthly treatment grids are left to the target-trial analyses (Paper 3), as the review''s §7 recommends.
+
+    '
+  latent:
+  - trait
+  edges:
+  - from: motor
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5; AAN 2021 2c
+  - from: adl
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5
+  - from: fluct
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2c (titrate on fluctuations); MDS 2025
+  - from: dysk
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2b (lowest dose for dyskinesia)
+  - from: motor
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6; AAN 2021 1c
+  - from: fluct
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10 (adjunct for fluctuations)
+  - from: age
+    to: da
+    grade: GUIDELINE
+    src: AAN 2021 1d (>70 y)
+  - from: cog
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+  - from: ess
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a
+  - from: icd
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+  - from: hall
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a (hallucinations)
+  - from: motor
+    to: maob
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6
+  - from: fluct
+    to: maob
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10; MDS 2025
+  - from: dysk
+    to: ama
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10 (amantadine if dyskinesia persists); MDS 2018
+  - from: cog
+    to: ama
+    kind: same
+    grade: MODERATE
+    src: 'MDS 2018 (amantadine: confusion/hallucination risk with cognitive impairment)'
+  - from: ldopa
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: PMID 23630119 STRIDE-PD; 15590952 ELLDOPA; AAN 2021 2d
+  - from: ldopa
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: PMID 23630119 (wearing-off dose-dependent)
+  - from: bmi
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: PMID 23630119 (low weight -> dyskinesia); AAN 2021 (lower body weight risk factor)
+  - from: male
+    to: dysk
+    grade: STRONG
+    src: AAN 2021 (female sex -> dyskinesia risk); PMID 23630119
+  - from: age
+    to: dysk
+    grade: STRONG
+    src: AAN 2021 (younger age -> dyskinesia)
+  - from: dur0
+    to: fluct
+    grade: STRONG
+    src: PMID 25034897 Cilia 2014 (disease duration drives complications)
+  - from: ama
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: MDS 2018 (amantadine clinically useful for dyskinesia)
+  - from: ama
+    to: hall
+    kind: same
+    grade: MODERATE
+    src: 'MDS 2018 (amantadine: hallucinations/confusion)'
+  - from: maob
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: MDS 2018/2025 (MAO-B inhibitors reduce OFF time)
+  - from: da
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: MDS 2018/2025 (agonists reduce OFF time)
+  - from: da
+    to: icd
+    kind: same
+    grade: STRONG
+    src: PMID 20457959 DOMINION; 29925549 DIGPD
+  - from: da
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 26085603; 28554959; 33637423
+  - from: da
+    to: hall
+    kind: same
+    grade: STRONG
+    src: 'NICE NG71 (agonists: more hallucinations); MDS 2018'
+  - from: ldopa
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 33637423
+  - from: ldopa
+    to: hall
+    kind: same
+    grade: MODERATE
+    src: MDS 2019 non-motor review (dopaminergic psychosis)
+  - from: ldopa
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 15590952 ELLDOPA; 24928805 PD MED
+  - from: motor
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 24711047; 29662921
+  - from: axial
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474 Shulman (H&Y II->III, gait/balance); 18307261 Hely
+  - from: axial
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 10968298 Aarsland (functional impairment -> institutionalisation)
+  - from: adl
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 15086662
+  - from: motor
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474
+  - from: fluct
+    to: adl
+    kind: same
+    grade: STRONG
+    src: MDS 2025 (OFF time -> disability, HRQoL)
+  - from: dysk
+    to: adl
+    kind: same
+    grade: MODERATE
+    src: MDS 2025 (troublesome dyskinesia -> disability)
+  - from: age
+    to: motor
+    grade: STRONG
+    src: PMID 23345637; 26865518
+  - from: age
+    to: axial
+    grade: STRONG
+    src: PMID 23781007 CamPaIGN (age -> postural instability)
+  - from: dat0
+    to: motor
+    grade: MODERATE
+    src: PMID 22976926
+  - from: dat0
+    to: axial
+    grade: MODERATE
+    src: PMID 22976926 PRECEPT (DaT -> postural instability/falls)
+  - from: dur0
+    to: motor
+    grade: STRONG
+    src: definitional
+  - from: age
+    to: cog
+    grade: STRONG
+    src: PMID 27866858; 23781007
+  - from: apoe4
+    to: cog
+    grade: STRONG
+    src: PMID 30405900; 35106798
+  - from: educ
+    to: cog
+    grade: MODERATE
+    src: PMID 24034887
+  - from: cog
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 23172765; 20310053
+  - from: cog
+    to: hall
+    kind: same
+    grade: STRONG
+    src: MDS 2019; PMID 10968298 (dementia -> hallucinations); 20921512
+  - from: hall
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 10968298 Aarsland (hallucinations strongest predictor of nursing-home placement)
+  - from: anx
+    to: adl
+    kind: lag
+    grade: MODERATE
+    src: PMID 21264941 Martinez-Martin (anxiety -> disability/QoL)
+  - from: anx
+    to: icd
+    kind: lag
+    grade: STRONG
+    src: PMID 34897102 Waskowiak 2022 (trait anxiety -> ICD in PPMI)
+  - from: dep
+    to: icd
+    kind: lag
+    grade: STRONG
+    src: PMID 31415102 Marin-Lahoz 2019
+  - from: male
+    to: rbd
+    grade: STRONG
+    src: PMID 37422999
+  - from: male
+    to: cog
+    grade: STRONG
+    src: PMID 33002231; 25171928
+  - from: male
+    to: ess
+    grade: STRONG
+    src: PMID 33637423
+  - from: trait
+    to: rbd
+    grade: STRONG
+    src: PMID 31498132; 32830221; 29102236
+  - from: trait
+    to: aut
+    grade: STRONG
+    src: as above
+  - from: trait
+    to: dep
+    grade: MODERATE
+    src: PMID 17646625; 19514014
+  - from: trait
+    to: anx
+    grade: MODERATE
+    src: PMID 19514014 PRIAMO (anxiety co-occurs with the non-motor cluster)
+  - from: trait
+    to: ess
+    grade: MODERATE
+    src: PMID 28554959
+  - from: trait
+    to: cog
+    grade: STRONG
+    src: PMID 22322798; 25171928; 30089615
+  - from: trait
+    to: motor
+    grade: MODERATE
+    src: PMID 30089615; 28655059
+  - from: trait
+    to: hall
+    grade: MODERATE
+    src: PMID 29102236 Kim 2018 (RBD -> hallucinations)
+  - from: aut
+    to: oh
+    kind: same
+    grade: STRONG
+    src: PMID 29278286
+  - from: oh
+    to: axial
+    kind: lag
+    grade: MODERATE
+    src: PMID 35708788 Longardner (OH -> falls)
+- name: v41_progression
+  node_set: v41
+  description: 'v4 revised per the review in expert_dag_results.md section 8. Construct fixes: (1) motor_na = UPDRS III minus the axial items, removing the part-whole overlap between motor and axial; (2)
+    STAI split into baseline trait anxiety (anx_trait0) and time-varying state anxiety (anx_state); (3) a core impulse-control outcome (gambling, sexual, buying) with compulsive eating excluded, removing
+    overlap with BMI; (4) baseline BMI (bmi0) as the dyskinesia risk factor instead of same-visit BMI; (5) treatment history: months since levodopa start (t_ldopa) and cumulative levodopa (cum_ldopa) as
+    shared causes of wearing-off and dyskinesia, instead of an arbitrary fluct<->dysk direction; (6) the latent non-motor trait now has baseline DaT binding as an indicator (trait -> dat0), so the repeated
+    DaT-autonomic dependence is explained by the trait rather than by a direct DaT arrow. Restored lagged disability-feedback edges from v3 (depression/autonomic -> ADL; ADL -> mood, sleepiness). Deliberately
+    NOT added, per the review: DaT -> autonomic, DaT -> OH, fluct <-> dysk, and symptom -> dose arrows for every rejected independence. trait -> hallucinations is kept but marked EXPLORATORY.
+
+    '
+  latent:
+  - trait
+  edges:
+  - from: motor_na
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5; AAN 2021 2c
+  - from: axial
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5 (motor symptoms affecting QoL incl. gait)
+  - from: adl
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5
+  - from: fluct
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2c; MDS 2025
+  - from: dysk
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2b (lowest dose for dyskinesia)
+    note: unsupported 0/3 in v4; retained as a guideline rule for clinician review
+  - from: motor_na
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6; AAN 2021 1c
+    note: unsupported 0/3 in v1-v4
+  - from: fluct
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10
+  - from: age
+    to: da
+    grade: GUIDELINE
+    src: AAN 2021 1d (>70 y)
+  - from: cog
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+    note: unsupported 0/3; indication and effect cancel at annual lag
+  - from: ess
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a
+  - from: icd_core
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+  - from: hall
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a
+    note: unsupported 0/3 in v4
+  - from: motor_na
+    to: maob
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6
+  - from: fluct
+    to: maob
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10; MDS 2025
+  - from: dysk
+    to: ama
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10; MDS 2018
+  - from: cog
+    to: ama
+    kind: same
+    grade: MODERATE
+    src: MDS 2018 (amantadine confusion risk with cognitive impairment)
+  - from: ldopa
+    to: t_ldopa
+    kind: same
+    grade: STRUCTURAL
+    src: t_ldopa = months since first levodopa dose > 0 (derived)
+  - from: ldopa
+    to: cum_ldopa
+    kind: same
+    grade: STRUCTURAL
+    src: cum_ldopa = integral of levodopa dose over time (derived)
+  - from: t_ldopa
+    to: cum_ldopa
+    kind: same
+    grade: STRUCTURAL
+    src: cumulative exposure grows with time on levodopa (derived)
+  - from: ldopa
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: PMID 23630119; 15590952; AAN 2021 2d
+  - from: ldopa
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: PMID 23630119
+  - from: t_ldopa
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: PMID 23630119 STRIDE-PD (time on levodopa -> wearing-off)
+  - from: t_ldopa
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: PMID 23630119; 25034897 (duration of exposure, with dose)
+  - from: cum_ldopa
+    to: fluct
+    kind: same
+    grade: MODERATE
+    src: PMID 25034897 Cilia 2014 (cumulative exposure)
+  - from: cum_ldopa
+    to: dysk
+    kind: same
+    grade: MODERATE
+    src: PMID 25034897
+  - from: bmi0
+    to: dysk
+    grade: STRONG
+    src: PMID 23630119; AAN 2021 (lower body weight -> dyskinesia)
+  - from: male
+    to: dysk
+    grade: STRONG
+    src: AAN 2021; PMID 23630119 (female sex -> dyskinesia)
+  - from: age
+    to: dysk
+    grade: STRONG
+    src: AAN 2021 (younger age -> dyskinesia)
+  - from: ama
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: MDS 2018
+  - from: ama
+    to: hall
+    kind: same
+    grade: MODERATE
+    src: MDS 2018
+    note: unsupported 0/3 in v4
+  - from: maob
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: MDS 2018/2025
+    note: unsupported 0/3 in v4; indication/effect cancel
+  - from: da
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: MDS 2018/2025
+  - from: da
+    to: icd_core
+    kind: same
+    grade: STRONG
+    src: PMID 20457959 DOMINION; 29925549 DIGPD
+  - from: da
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 26085603; 28554959; 33637423
+  - from: da
+    to: hall
+    kind: same
+    grade: STRONG
+    src: NICE NG71; MDS 2018
+    note: unsupported 0/3 in v4
+  - from: ldopa
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 33637423
+  - from: ldopa
+    to: hall
+    kind: same
+    grade: MODERATE
+    src: MDS 2019
+  - from: ldopa
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 15590952; 24928805
+    note: unsupported 0/3 in v1-v4; confounding by indication at annual lag
+  - from: age
+    to: icd_core
+    grade: STRONG
+    src: PMID 20457959 DOMINION (younger age); AAN 2021
+  - from: male
+    to: icd_core
+    grade: MODERATE
+    src: AAN 2021 (male sex); DOMINION subtype-specific only
+  - from: dep
+    to: icd_core
+    kind: lag
+    grade: STRONG
+    src: PMID 31415102 Marin-Lahoz 2019 (HR 1.96)
+  - from: anx_trait0
+    to: icd_core
+    grade: STRONG
+    src: PMID 34897102 Waskowiak 2022 (trait anxiety -> ICD, PPMI)
+  - from: motor_na
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 24711047; 29662921
+  - from: axial
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474 Shulman; 18307261 Hely
+  - from: axial
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 10968298 Aarsland
+  - from: adl
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 15086662
+  - from: motor_na
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474
+  - from: motor_na
+    to: fluct
+    kind: lag
+    grade: MODERATE
+    src: PMID 23630119 STRIDE-PD (baseline UPDRS III predicts wearing-off)
+  - from: motor_na
+    to: dysk
+    kind: lag
+    grade: MODERATE
+    src: PMID 23630119 (higher UPDRS II/III -> dyskinesia)
+  - from: fluct
+    to: adl
+    kind: same
+    grade: STRONG
+    src: MDS 2025 (OFF time -> disability)
+  - from: dysk
+    to: adl
+    kind: same
+    grade: MODERATE
+    src: MDS 2025 (troublesome dyskinesia)
+    note: unsupported 0/3 in v4
+  - from: age
+    to: motor_na
+    grade: STRONG
+    src: PMID 23345637; 26865518
+  - from: age
+    to: axial
+    grade: STRONG
+    src: PMID 23781007 CamPaIGN
+  - from: dat0
+    to: motor_na
+    grade: MODERATE
+    src: PMID 22976926
+  - from: dat0
+    to: axial
+    grade: MODERATE
+    src: PMID 22976926 PRECEPT
+  - from: dur0
+    to: motor_na
+    grade: STRONG
+    src: definitional
+    note: 'unsupported: no variance in a de novo cohort'
+  - from: age
+    to: cog
+    grade: STRONG
+    src: PMID 27866858; 23781007
+  - from: apoe4
+    to: cog
+    grade: STRONG
+    src: PMID 30405900; 35106798
+    note: 'unsupported 0/3: APOE predicts 10-y dementia, not annual MoCA change'
+  - from: educ
+    to: cog
+    grade: MODERATE
+    src: PMID 24034887
+  - from: cog
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 23172765; 20310053
+  - from: cog
+    to: hall
+    kind: same
+    grade: STRONG
+    src: MDS 2019; PMID 10968298; 20921512
+  - from: hall
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 10968298 Aarsland (hallucinations -> nursing-home placement)
+    note: unsupported 0/3 in v4; placement is rare in PPMI
+  - from: anx_state
+    to: adl
+    kind: lag
+    grade: MODERATE
+    src: PMID 21264941 Martinez-Martin
+  - from: male
+    to: rbd
+    grade: STRONG
+    src: PMID 37422999
+  - from: male
+    to: cog
+    grade: STRONG
+    src: PMID 33002231; 25171928
+  - from: male
+    to: ess
+    grade: STRONG
+    src: PMID 33637423
+  - from: dep
+    to: adl
+    kind: lag
+    grade: STRONG
+    src: PMID 10945804 Schrag 2000; 15086662 Weintraub 2004
+  - from: dep
+    to: se
+    kind: lag
+    grade: STRONG
+    src: PMID 15086662; 21264941
+    note: 'retest after dep->adl is in: part may be mediated by ADL'
+  - from: aut
+    to: adl
+    kind: lag
+    grade: STRONG
+    src: PMID 29278286 Merola 2018
+  - from: adl
+    to: dep
+    kind: lag
+    grade: MODERATE
+    src: PMID 10945804 (disability -> mood)
+  - from: adl
+    to: ess
+    kind: lag
+    grade: WEAK
+    src: PMID 26085603 ParkWest (UPDRS-ADL -> EDS)
+  - from: trait
+    to: rbd
+    grade: STRONG
+    src: PMID 31498132; 32830221; 29102236
+  - from: trait
+    to: aut
+    grade: STRONG
+    src: as above
+  - from: trait
+    to: dep
+    grade: MODERATE
+    src: PMID 17646625; 19514014
+  - from: trait
+    to: ess
+    grade: MODERATE
+    src: PMID 28554959
+  - from: trait
+    to: anx_trait0
+    grade: MODERATE
+    src: PMID 19514014 PRIAMO (anxiety in the non-motor cluster); Phase 1 RLCD
+  - from: trait
+    to: anx_state
+    grade: MODERATE
+    src: PMID 19514014 PRIAMO; state anxiety co-varies with depression and the non-motor cluster
+  - from: anx_trait0
+    to: anx_state
+    grade: STRONG
+    src: 'STAI: trait anxiety predisposes to state anxiety (Spielberger); r = 0.79 in PPMI'
+  - from: trait
+    to: dat0
+    grade: MODERATE
+    src: 'Phase 1 latent analysis: DaT loads on the non-motor factor in 2/3 cohorts (-0.27, -0.29)'
+  - from: trait
+    to: cog
+    grade: STRONG
+    src: PMID 22322798; 25171928; 30089615
+  - from: trait
+    to: motor_na
+    grade: MODERATE
+    src: PMID 30089615; 28655059
+  - from: trait
+    to: hall
+    grade: EXPLORATORY
+    src: PMID 29102236 Kim 2018 (RBD -> hallucinations)
+    note: 'review: add only if a factor analysis supports the loading'
+  - from: aut
+    to: oh
+    kind: same
+    grade: STRONG
+    src: PMID 29278286
+- name: v5_escalation
+  node_set: v41
+  nodes:
+  - ldopa
+  - da
+  - maob
+  - ama
+  - t_ldopa
+  - cum_ldopa
+  - motor_na
+  - axial
+  - adl
+  - se
+  - fluct
+  - dysk
+  - ess
+  - icd_core
+  - cog
+  - dep
+  - hall
+  - age
+  - male
+  - educ
+  - apoe4
+  - dat0
+  - dur0
+  description: 'Escalation-focused clinical model: the induced subgraph of v4.1 on the nodes relevant to the levodopa dose decision (the decision and co-treatment doses, treatment history, the symptom domains
+    that drive dosing and the outcomes of the pre-specified analysis, their baseline causes, and the latent non-motor trait), plus structural edges that project v4.1 paths running through omitted nodes.
+    Grades and sources are inherited from v4.1.'
+  latent:
+  - trait
+  edges:
+  - from: motor_na
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5; AAN 2021 2c
+  - from: axial
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5 (motor symptoms affecting QoL incl. gait)
+  - from: adl
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5
+  - from: fluct
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2c; MDS 2025
+  - from: dysk
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2b (lowest dose for dyskinesia)
+    note: unsupported 0/3 in v4; retained as a guideline rule for clinician review
+  - from: motor_na
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6; AAN 2021 1c
+    note: unsupported 0/3 in v1-v4
+  - from: fluct
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10
+  - from: age
+    to: da
+    grade: GUIDELINE
+    src: AAN 2021 1d (>70 y)
+  - from: cog
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+    note: unsupported 0/3; indication and effect cancel at annual lag
+  - from: ess
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a
+  - from: icd_core
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+  - from: hall
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a
+    note: unsupported 0/3 in v4
+  - from: motor_na
+    to: maob
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6
+  - from: fluct
+    to: maob
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10; MDS 2025
+  - from: dysk
+    to: ama
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10; MDS 2018
+  - from: cog
+    to: ama
+    kind: same
+    grade: MODERATE
+    src: MDS 2018 (amantadine confusion risk with cognitive impairment)
+  - from: ldopa
+    to: t_ldopa
+    kind: same
+    grade: STRUCTURAL
+    src: t_ldopa = months since first levodopa dose > 0 (derived)
+  - from: ldopa
+    to: cum_ldopa
+    kind: same
+    grade: STRUCTURAL
+    src: cum_ldopa = integral of levodopa dose over time (derived)
+  - from: t_ldopa
+    to: cum_ldopa
+    kind: same
+    grade: STRUCTURAL
+    src: cumulative exposure grows with time on levodopa (derived)
+  - from: ldopa
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: PMID 23630119; 15590952; AAN 2021 2d
+  - from: ldopa
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: PMID 23630119
+  - from: t_ldopa
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: PMID 23630119 STRIDE-PD (time on levodopa -> wearing-off)
+  - from: t_ldopa
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: PMID 23630119; 25034897 (duration of exposure, with dose)
+  - from: cum_ldopa
+    to: fluct
+    kind: same
+    grade: MODERATE
+    src: PMID 25034897 Cilia 2014 (cumulative exposure)
+  - from: cum_ldopa
+    to: dysk
+    kind: same
+    grade: MODERATE
+    src: PMID 25034897
+  - from: male
+    to: dysk
+    grade: STRONG
+    src: AAN 2021; PMID 23630119 (female sex -> dyskinesia)
+  - from: age
+    to: dysk
+    grade: STRONG
+    src: AAN 2021 (younger age -> dyskinesia)
+  - from: ama
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: MDS 2018
+  - from: ama
+    to: hall
+    kind: same
+    grade: MODERATE
+    src: MDS 2018
+    note: unsupported 0/3 in v4
+  - from: maob
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: MDS 2018/2025
+    note: unsupported 0/3 in v4; indication/effect cancel
+  - from: da
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: MDS 2018/2025
+  - from: da
+    to: icd_core
+    kind: same
+    grade: STRONG
+    src: PMID 20457959 DOMINION; 29925549 DIGPD
+  - from: da
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 26085603; 28554959; 33637423
+  - from: da
+    to: hall
+    kind: same
+    grade: STRONG
+    src: NICE NG71; MDS 2018
+    note: unsupported 0/3 in v4
+  - from: ldopa
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 33637423
+  - from: ldopa
+    to: hall
+    kind: same
+    grade: MODERATE
+    src: MDS 2019
+  - from: ldopa
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 15590952; 24928805
+    note: unsupported 0/3 in v1-v4; confounding by indication at annual lag
+  - from: age
+    to: icd_core
+    grade: STRONG
+    src: PMID 20457959 DOMINION (younger age); AAN 2021
+  - from: male
+    to: icd_core
+    grade: MODERATE
+    src: AAN 2021 (male sex); DOMINION subtype-specific only
+  - from: dep
+    to: icd_core
+    kind: lag
+    grade: STRONG
+    src: PMID 31415102 Marin-Lahoz 2019 (HR 1.96)
+  - from: motor_na
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 24711047; 29662921
+  - from: axial
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474 Shulman; 18307261 Hely
+  - from: axial
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 10968298 Aarsland
+  - from: adl
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 15086662
+  - from: motor_na
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474
+  - from: motor_na
+    to: fluct
+    kind: lag
+    grade: MODERATE
+    src: PMID 23630119 STRIDE-PD (baseline UPDRS III predicts wearing-off)
+  - from: motor_na
+    to: dysk
+    kind: lag
+    grade: MODERATE
+    src: PMID 23630119 (higher UPDRS II/III -> dyskinesia)
+  - from: fluct
+    to: adl
+    kind: same
+    grade: STRONG
+    src: MDS 2025 (OFF time -> disability)
+  - from: dysk
+    to: adl
+    kind: same
+    grade: MODERATE
+    src: MDS 2025 (troublesome dyskinesia)
+    note: unsupported 0/3 in v4
+  - from: age
+    to: motor_na
+    grade: STRONG
+    src: PMID 23345637; 26865518
+  - from: age
+    to: axial
+    grade: STRONG
+    src: PMID 23781007 CamPaIGN
+  - from: dat0
+    to: motor_na
+    grade: MODERATE
+    src: PMID 22976926
+  - from: dat0
+    to: axial
+    grade: MODERATE
+    src: PMID 22976926 PRECEPT
+  - from: dur0
+    to: motor_na
+    grade: STRONG
+    src: definitional
+    note: 'unsupported: no variance in a de novo cohort'
+  - from: age
+    to: cog
+    grade: STRONG
+    src: PMID 27866858; 23781007
+  - from: apoe4
+    to: cog
+    grade: STRONG
+    src: PMID 30405900; 35106798
+    note: 'unsupported 0/3: APOE predicts 10-y dementia, not annual MoCA change'
+  - from: educ
+    to: cog
+    grade: MODERATE
+    src: PMID 24034887
+  - from: cog
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 23172765; 20310053
+  - from: cog
+    to: hall
+    kind: same
+    grade: STRONG
+    src: MDS 2019; PMID 10968298; 20921512
+  - from: hall
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 10968298 Aarsland (hallucinations -> nursing-home placement)
+    note: unsupported 0/3 in v4; placement is rare in PPMI
+  - from: male
+    to: cog
+    grade: STRONG
+    src: PMID 33002231; 25171928
+  - from: male
+    to: ess
+    grade: STRONG
+    src: PMID 33637423
+  - from: dep
+    to: adl
+    kind: lag
+    grade: STRONG
+    src: PMID 10945804 Schrag 2000; 15086662 Weintraub 2004
+  - from: dep
+    to: se
+    kind: lag
+    grade: STRONG
+    src: PMID 15086662; 21264941
+    note: 'retest after dep->adl is in: part may be mediated by ADL'
+  - from: adl
+    to: dep
+    kind: lag
+    grade: MODERATE
+    src: PMID 10945804 (disability -> mood)
+  - from: adl
+    to: ess
+    kind: lag
+    grade: WEAK
+    src: PMID 26085603 ParkWest (UPDRS-ADL -> EDS)
+  - from: trait
+    to: dep
+    grade: MODERATE
+    src: PMID 17646625; 19514014
+  - from: trait
+    to: ess
+    grade: MODERATE
+    src: PMID 28554959
+  - from: trait
+    to: dat0
+    grade: MODERATE
+    src: 'Phase 1 latent analysis: DaT loads on the non-motor factor in 2/3 cohorts (-0.27, -0.29)'
+  - from: trait
+    to: cog
+    grade: STRONG
+    src: PMID 22322798; 25171928; 30089615
+  - from: trait
+    to: motor_na
+    grade: MODERATE
+    src: PMID 30089615; 28655059
+  - from: trait
+    to: hall
+    grade: EXPLORATORY
+    src: PMID 29102236 Kim 2018 (RBD -> hallucinations)
+    note: 'review: add only if a factor analysis supports the loading'
+  - from: trait
+    to: icd_core
+    kind: both
+    grade: STRUCTURAL
+    src: projection of v4.1 path trait -> anx_trait0 -> icd_core over nodes outside the escalation model
+  - from: trait
+    to: adl
+    kind: lag
+    grade: STRUCTURAL
+    src: projection of v4.1 path trait -> aut -> adl over nodes outside the escalation model
+- name: v51_escalation
+  node_set: v41
+  nodes:
+  - ldopa
+  - da
+  - maob
+  - ama
+  - t_ldopa
+  - cum_ldopa
+  - motor_na
+  - axial
+  - adl
+  - se
+  - fluct
+  - dysk
+  - ess
+  - icd_core
+  - cog
+  - dep
+  - hall
+  - age
+  - male
+  - educ
+  - apoe4
+  - dat0
+  - dur0
+  description: 'Escalation-focused clinical model: the induced subgraph of v4.1 on the nodes relevant to the levodopa dose decision (the decision and co-treatment doses, treatment history, the symptom domains
+    that drive dosing and the outcomes of the pre-specified analysis, their baseline causes, and the latent non-motor trait), plus structural edges that project v4.1 paths running through omitted nodes.
+    Grades and sources are inherited from v4.1. v5.1 adds the titration edge months-on-levodopa -> next levodopa dose, proposed by the decision model and submitted for clinician review.'
+  latent:
+  - trait
+  edges:
+  - from: motor_na
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5; AAN 2021 2c
+  - from: axial
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5 (motor symptoms affecting QoL incl. gait)
+  - from: adl
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.5
+  - from: fluct
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2c; MDS 2025
+  - from: dysk
+    to: ldopa
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 2b (lowest dose for dyskinesia)
+    note: unsupported 0/3 in v4; retained as a guideline rule for clinician review
+  - from: motor_na
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6; AAN 2021 1c
+    note: unsupported 0/3 in v1-v4
+  - from: fluct
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10
+  - from: age
+    to: da
+    grade: GUIDELINE
+    src: AAN 2021 1d (>70 y)
+  - from: cog
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+    note: unsupported 0/3; indication and effect cancel at annual lag
+  - from: ess
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a
+  - from: icd_core
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/5a
+  - from: hall
+    to: da
+    kind: same
+    grade: GUIDELINE
+    src: AAN 2021 1d/3b/5a
+    note: unsupported 0/3 in v4
+  - from: motor_na
+    to: maob
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.6
+  - from: fluct
+    to: maob
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10; MDS 2025
+  - from: dysk
+    to: ama
+    kind: same
+    grade: GUIDELINE
+    src: NICE NG71 1.3.10; MDS 2018
+  - from: cog
+    to: ama
+    kind: same
+    grade: MODERATE
+    src: MDS 2018 (amantadine confusion risk with cognitive impairment)
+  - from: ldopa
+    to: t_ldopa
+    kind: same
+    grade: STRUCTURAL
+    src: t_ldopa = months since first levodopa dose > 0 (derived)
+  - from: ldopa
+    to: cum_ldopa
+    kind: same
+    grade: STRUCTURAL
+    src: cum_ldopa = integral of levodopa dose over time (derived)
+  - from: t_ldopa
+    to: cum_ldopa
+    kind: same
+    grade: STRUCTURAL
+    src: cumulative exposure grows with time on levodopa (derived)
+  - from: ldopa
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: PMID 23630119; 15590952; AAN 2021 2d
+  - from: ldopa
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: PMID 23630119
+  - from: t_ldopa
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: PMID 23630119 STRIDE-PD (time on levodopa -> wearing-off)
+  - from: t_ldopa
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: PMID 23630119; 25034897 (duration of exposure, with dose)
+  - from: cum_ldopa
+    to: fluct
+    kind: same
+    grade: MODERATE
+    src: PMID 25034897 Cilia 2014 (cumulative exposure)
+  - from: cum_ldopa
+    to: dysk
+    kind: same
+    grade: MODERATE
+    src: PMID 25034897
+  - from: male
+    to: dysk
+    grade: STRONG
+    src: AAN 2021; PMID 23630119 (female sex -> dyskinesia)
+  - from: age
+    to: dysk
+    grade: STRONG
+    src: AAN 2021 (younger age -> dyskinesia)
+  - from: ama
+    to: dysk
+    kind: same
+    grade: STRONG
+    src: MDS 2018
+  - from: ama
+    to: hall
+    kind: same
+    grade: MODERATE
+    src: MDS 2018
+    note: unsupported 0/3 in v4
+  - from: maob
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: MDS 2018/2025
+    note: unsupported 0/3 in v4; indication/effect cancel
+  - from: da
+    to: fluct
+    kind: same
+    grade: STRONG
+    src: MDS 2018/2025
+  - from: da
+    to: icd_core
+    kind: same
+    grade: STRONG
+    src: PMID 20457959 DOMINION; 29925549 DIGPD
+  - from: da
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 26085603; 28554959; 33637423
+  - from: da
+    to: hall
+    kind: same
+    grade: STRONG
+    src: NICE NG71; MDS 2018
+    note: unsupported 0/3 in v4
+  - from: ldopa
+    to: ess
+    kind: same
+    grade: STRONG
+    src: PMID 33637423
+  - from: ldopa
+    to: hall
+    kind: same
+    grade: MODERATE
+    src: MDS 2019
+  - from: ldopa
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 15590952; 24928805
+    note: unsupported 0/3 in v1-v4; confounding by indication at annual lag
+  - from: age
+    to: icd_core
+    grade: STRONG
+    src: PMID 20457959 DOMINION (younger age); AAN 2021
+  - from: male
+    to: icd_core
+    grade: MODERATE
+    src: AAN 2021 (male sex); DOMINION subtype-specific only
+  - from: dep
+    to: icd_core
+    kind: lag
+    grade: STRONG
+    src: PMID 31415102 Marin-Lahoz 2019 (HR 1.96)
+  - from: motor_na
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 24711047; 29662921
+  - from: axial
+    to: adl
+    kind: same
+    grade: STRONG
+    src: PMID 18361474 Shulman; 18307261 Hely
+  - from: axial
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 10968298 Aarsland
+  - from: adl
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474; 15086662
+  - from: motor_na
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 18361474
+  - from: motor_na
+    to: fluct
+    kind: lag
+    grade: MODERATE
+    src: PMID 23630119 STRIDE-PD (baseline UPDRS III predicts wearing-off)
+  - from: motor_na
+    to: dysk
+    kind: lag
+    grade: MODERATE
+    src: PMID 23630119 (higher UPDRS II/III -> dyskinesia)
+  - from: fluct
+    to: adl
+    kind: same
+    grade: STRONG
+    src: MDS 2025 (OFF time -> disability)
+  - from: dysk
+    to: adl
+    kind: same
+    grade: MODERATE
+    src: MDS 2025 (troublesome dyskinesia)
+    note: unsupported 0/3 in v4
+  - from: age
+    to: motor_na
+    grade: STRONG
+    src: PMID 23345637; 26865518
+  - from: age
+    to: axial
+    grade: STRONG
+    src: PMID 23781007 CamPaIGN
+  - from: dat0
+    to: motor_na
+    grade: MODERATE
+    src: PMID 22976926
+  - from: dat0
+    to: axial
+    grade: MODERATE
+    src: PMID 22976926 PRECEPT
+  - from: dur0
+    to: motor_na
+    grade: STRONG
+    src: definitional
+    note: 'unsupported: no variance in a de novo cohort'
+  - from: age
+    to: cog
+    grade: STRONG
+    src: PMID 27866858; 23781007
+  - from: apoe4
+    to: cog
+    grade: STRONG
+    src: PMID 30405900; 35106798
+    note: 'unsupported 0/3: APOE predicts 10-y dementia, not annual MoCA change'
+  - from: educ
+    to: cog
+    grade: MODERATE
+    src: PMID 24034887
+  - from: cog
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 23172765; 20310053
+  - from: cog
+    to: hall
+    kind: same
+    grade: STRONG
+    src: MDS 2019; PMID 10968298; 20921512
+  - from: hall
+    to: se
+    kind: same
+    grade: STRONG
+    src: PMID 10968298 Aarsland (hallucinations -> nursing-home placement)
+    note: unsupported 0/3 in v4; placement is rare in PPMI
+  - from: male
+    to: cog
+    grade: STRONG
+    src: PMID 33002231; 25171928
+  - from: male
+    to: ess
+    grade: STRONG
+    src: PMID 33637423
+  - from: dep
+    to: adl
+    kind: lag
+    grade: STRONG
+    src: PMID 10945804 Schrag 2000; 15086662 Weintraub 2004
+  - from: dep
+    to: se
+    kind: lag
+    grade: STRONG
+    src: PMID 15086662; 21264941
+    note: 'retest after dep->adl is in: part may be mediated by ADL'
+  - from: adl
+    to: dep
+    kind: lag
+    grade: MODERATE
+    src: PMID 10945804 (disability -> mood)
+  - from: adl
+    to: ess
+    kind: lag
+    grade: WEAK
+    src: PMID 26085603 ParkWest (UPDRS-ADL -> EDS)
+  - from: trait
+    to: dep
+    grade: MODERATE
+    src: PMID 17646625; 19514014
+  - from: trait
+    to: ess
+    grade: MODERATE
+    src: PMID 28554959
+  - from: trait
+    to: dat0
+    grade: MODERATE
+    src: 'Phase 1 latent analysis: DaT loads on the non-motor factor in 2/3 cohorts (-0.27, -0.29)'
+  - from: trait
+    to: cog
+    grade: STRONG
+    src: PMID 22322798; 25171928; 30089615
+  - from: trait
+    to: motor_na
+    grade: MODERATE
+    src: PMID 30089615; 28655059
+  - from: trait
+    to: hall
+    grade: EXPLORATORY
+    src: PMID 29102236 Kim 2018 (RBD -> hallucinations)
+    note: 'review: add only if a factor analysis supports the loading'
+  - from: trait
+    to: icd_core
+    kind: both
+    grade: STRUCTURAL
+    src: projection of v4.1 path trait -> anx_trait0 -> icd_core over nodes outside the escalation model
+  - from: trait
+    to: adl
+    kind: lag
+    grade: STRUCTURAL
+    src: projection of v4.1 path trait -> aut -> adl over nodes outside the escalation model
+  - from: t_ldopa
+    to: ldopa
+    kind: same
+    grade: MODERATE
+    src: 'titration schedule: NICE NG71 1.3.5 (titrate to the lowest effective dose); decision model results/escalation/confounder_profile.csv (OR 0.68 per SD of months on levodopa, p 0.016, PPMI 1.0) —
+      proposed from data, for clinician review'
+    note: 'v5.1: months on levodopa -> next dose (the titration ramp); unroll places it as t_ldopa_t -> ldopa_t+1'

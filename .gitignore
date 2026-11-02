@@ -1,0 +1,18 @@
+# PPMI data-use agreement: participant-level tables, fitted generators, missingness pattern banks, simulated panels and
+# every per-row array stay here and are never shared
+data/
+# third-party binaries and side environments
+tools/*.jar
+tools/*.sha1
+envs/*/.venv/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+logs/
+# pretrained weights that the side environments download
+envs/*/weights/
+# aggregates derived from PPMI stay off the remote until the user decides what to share
+results/
+# macOS Finder files
+.DS_Store
