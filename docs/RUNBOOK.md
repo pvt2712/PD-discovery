@@ -26,7 +26,7 @@ The code uses the ppmi-causal Python environment (Python 3.13 with numpy, scipy,
 | Speed-only fit | about 30 s | about 9 minutes |
 | Free fit (two starts) | about 1–2 minutes | about 30 minutes |
 | One H-P bootstrap replicate (support selection and refits) | about 1.5 minutes | about 30–40 minutes |
-| One fit pair (speed-only and free) in a 4-job pool, 816 participants | not timed | 2–5.4 hours each (median 3.5), so about one an hour in all |
+| One fit pair (speed-only and free) in a 4-job pool, 816 participants | not timed | 2–5.4 hours each (median 3.4), so about one an hour in all |
 
 The protocol's §8.8 assumed 1 minute per fit. At the pool's rate, WP3's replicate numbers for family A at 10 domains would take about 3,500–4,000 hours (about 5 months) on this Mac, so the plan must be revised after the engine gate (D14).
 
@@ -50,7 +50,7 @@ Rerun these after a new PPMI download, or if the rules in `src/pdx/ppmi.py` chan
 AP="<investigator, date, approval document>"
 $PY scripts/build_ppmi_tables.py --approval "$AP"                      # seconds; reads ../PPMI/raw
 $PY scripts/run_wp0_audit.py --visits data/derived/wp0_visits.parquet --approval "$AP"
-$PY scripts/run_power_check.py --datasets 8 --jobs 4                    # pilot, about 10 hours (synthetic)
+$PY scripts/run_power_check.py --datasets 8 --jobs 4                    # pilot, about 9 hours (synthetic)
 $PY scripts/run_power_check.py --datasets 20 --jobs 4                   # optional direct Monte Carlo check, about half a day more
 ```
 

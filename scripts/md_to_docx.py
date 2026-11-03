@@ -25,7 +25,10 @@ def plain(text):
 
 
 def runs(par, text, size=None):
-    """Add text to a paragraph, turning **bold**, *italic*, `code` and [label](url) into runs."""
+    """Add text to a paragraph, turning **bold**, *italic*, `code`, [label](url) and a leading
+    task-list box "[ ]" into runs."""
+    if text.startswith("[ ] "):
+        text = "☐ " + text[4:]
     for part in INLINE.split(text.replace("\\|", "|")):
         if not part:
             continue
@@ -35,7 +38,7 @@ def runs(par, text, size=None):
         elif part.startswith("`"):
             run = par.add_run(part[1:-1])
             run.font.name = "Consolas"
-        elif part.startswith("["):
+        elif part.startswith("[") and "](" in part:
             run = par.add_run(part[1:part.index("](")])
         elif part.startswith("*"):
             run = par.add_run(part[1:-1])
@@ -153,6 +156,21 @@ def note(doc, text):
         run.font.color.rgb = RGBColor(0x40, 0x40, 0x40)
 
 
+def code(doc, line):
+    """One line of a code block, as written: monospace on a light shade, no inline markup."""
+    par = doc.add_paragraph()
+    shd = OxmlElement("w:shd")  # added before the spacing and indent, as the schema orders them
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), "F2F2F2")
+    par._p.get_or_add_pPr().append(shd)
+    par.paragraph_format.left_indent = Cm(0.3)
+    par.paragraph_format.space_after = Pt(0)
+    run = par.add_run(line)
+    run.font.name = "Consolas"
+    run.font.size = Pt(8.5)
+
+
 def footer(section, text):
     par = section.footer.paragraphs[0]
     run = par.add_run(f"{text}  ·  page ")
@@ -196,6 +214,14 @@ def convert(src, dst, footer_text=None):
             flush()
             doc.add_page_break()
             i += 1
+        elif s.startswith("```"):  # a code block: each line as written, up to the closing fence
+            flush()
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith("```"):
+                code(doc, lines[i])
+                i += 1
+            i += 1
+            doc.add_paragraph().paragraph_format.space_after = Pt(0)
         elif s.startswith("☐"):  # answer options, one line each
             flush()
             par = doc.add_paragraph()

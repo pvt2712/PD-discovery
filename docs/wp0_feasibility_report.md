@@ -126,7 +126,7 @@ These agree with the literature-based recommendations in `docs/measurement_relia
 
 ## 7. Power for H-P (the WP0 gate)
 
-> Added 4 November 2026 from the pilot's first 7 of 8 datasets; the eighth was still running. Synthetic data only; the numbers are in `results/wp0/power/summary.json`.
+> Added 4 November 2026 from the pilot's 8 datasets. Synthetic data only; the numbers are in `results/wp0/power/summary.json`.
 
 **Setup.** The family-A simulator was rerun at WP0's numbers:
 - 652 TD and 164 PIGD participants with at least one transition after the landmark;
@@ -136,11 +136,14 @@ These agree with the literature-based recommendations in `docs/measurement_relia
 Each dataset gets one speed-only fit and one free fit, without a bootstrap.
 
 **Results.**
-- **Every dataset rejected at 5%.** The likelihood ratios ran from 67 to 95, against chi-square critical values of 32.7 (21 df) or 35.2 (23 df). The degrees of freedom vary because H-P re-selects its support in each dataset.
-- **Power.** The estimated non-centrality is 59.3 (standard error 4.2), and 80% power needs only about 21. The noncentral power is 99.97% (range 99.84–99.995%). **The gate passes.**
-- **Margin.** H-P's real critical value comes from its bootstrap, not from the chi-square distribution. Even a critical value of 50 would leave the power at about 97%. WP3's H-M1 checks the bootstrap's size.
+- **Every dataset rejected at 5%.** The likelihood ratios ran from 40 to 95, against chi-square critical values of 32.7 to 35.2 (21 to 23 df). The degrees of freedom vary because H-P re-selects its support in each dataset.
+- **Power.** The estimated non-centrality is 54.1 (standard error 6.3; lower 95% bound 41.8), and 80% power needs only about 22. The noncentral power is 99.9% (range 99.1–99.99%). **The gate passes.**
+- **Margin.** H-P's real critical value comes from its bootstrap, not from the chi-square distribution.
+  - A critical value of 40 would leave the power at 99.5%, and one of 50 would leave it at 96%.
+  - The weakest dataset (40.0 at 22 df) shows the spread: it would not have rejected at 50.
+  - WP3's H-M1 checks the bootstrap's size.
 - **For the analysis plan.** The speed ratio from the speed-only model (Sp-1) read 2.1 to 2.7 (median 2.4), against a true 2.0. In S2 that model is wrong by design, so part of PIGD's extra link shows up as faster speed. When H-P rejects, Sp-1 therefore mixes speed with the pathway difference, and the analysis plan should say how it is read then. Its bias when the speed-only model is right is judged in S1 (WP3).
-- **Cost (for D14).** Each dataset took 2.0 to 5.4 hours (median 3.5) with 4 jobs running together, so this Mac completes about one fit pair an hour at 10 domains. The 200-dataset Monte Carlo run cannot change the verdict and would take about a week. If a direct Monte Carlo check is wanted, 20 datasets that all reject show at least 80% power on their own (exact lower bound 83%).
+- **Cost (for D14).** Each dataset took 2.0 to 5.4 hours (median 3.4) with 4 jobs running together, and the pilot took about 9 hours. So this Mac completes about one fit pair an hour at 10 domains. The 200-dataset Monte Carlo run cannot change the verdict and would take about a week. If a direct Monte Carlo check is wanted, 20 datasets that all reject show at least 80% power on their own (exact lower bound 83%).
 
 ## Files
 

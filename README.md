@@ -33,7 +33,7 @@ Design stage.
   - The speed-only fit needed 223 evaluations (about 9 minutes when run alone).
   - The free fit needed 375 evaluations from the null start (about 16 minutes), and the free model's second start comes on top.
   - So a bootstrap replicate costs roughly half an hour, against the 1 minute per fit assumed in §8.8.
-  - In the WP0 power pilot (816 participants, 4 jobs at once), each fit pair took 2–5.4 hours (median 3.5), so this Mac completes about one fit pair an hour. At that rate, WP3's replicate numbers for family A would take about 5 months here.
+  - In the WP0 power pilot (816 participants, 4 jobs at once), each fit pair took 2–5.4 hours (median 3.4), so this Mac completes about one fit pair an hour. At that rate, WP3's replicate numbers for family A would take about 5 months here.
   - The compute plan (D14) has to be revised once the engine gate has timed the real size.
 - **WP0, the feasibility audit, ran on 3 November 2026**, with the investigator's approval, on the PPMI download of 13 October 2026. `docs/wp0_feasibility_report.md` has the results, aggregate counts only:
   - 1,127 untreated sporadic participants: 804 TD, 209 PIGD, 114 indeterminate;
