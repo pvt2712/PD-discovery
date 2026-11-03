@@ -124,6 +124,25 @@ def _count_series(s: pd.Series) -> dict:
     return {("missing" if pd.isna(k) else k): int(v) for k, v in vc.items()}
 
 
+def domain_summaries(df: pd.DataFrame, c: "Columns", k: int) -> dict:
+    """Per domain at the baseline and landmark years: n, mean, standard deviation, and the shares
+    at the lowest and highest observed values (the floor/ceiling rule of D26; the standard
+    deviations put epsilon into clinical units, D12)."""
+    out = {}
+    for y in (0, 1):
+        rows = df[df[c.year] == y]
+        res = {}
+        for dname in c.domains:
+            x = pd.to_numeric(rows[dname], errors="coerce").dropna()
+            if len(x) < max(k, QUANTILE_MIN_N):
+                res[dname] = f"fewer than {max(k, QUANTILE_MIN_N)} values"
+                continue
+            res[dname] = {"n": int(len(x)), "mean": float(x.mean()), "sd": float(x.std(ddof=1)),
+                          "share_at_min": float((x == x.min()).mean()), "share_at_max": float((x == x.max()).mean())}
+        out[f"year_{y}"] = res
+    return out
+
+
 # ---------------------------------------------------------------- the audit
 
 def audit(df: pd.DataFrame, cols: Columns, min_cell: int = 5, band: float = 0.10) -> dict:
@@ -170,6 +189,11 @@ def audit(df: pd.DataFrame, cols: Columns, min_cell: int = 5, band: float = 0.10
                                 for key, grp in df.groupby(c.mode)}
         miss[dname] = entry
     out["missing_share"] = miss
+    if c.motor_state in df:
+        out["missing_share_by_motor_state"] = {
+            dname: {str(key): _share(grp[dname].isna().sum(), len(grp), k) for key, grp in df.groupby(c.motor_state)}
+            for dname in c.domains}
+    out["domain_summaries"] = domain_summaries(df, c, k)
     if c.site in df:
         sizes = base.groupby(c.site).size()
         out["sites"] = {"n_sites": int(len(sizes)), "sites_by_participants": {

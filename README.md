@@ -22,18 +22,27 @@ Design stage.
   - a re-implementation that reproduces the paper's published results;
   - the method's behaviour on our design: it reads speed as changed persistence, and has low power;
   - how it is used: as a named comparator, plus its root-cause vocabulary.
-- `docs/clinical_expert_questionnaire.md` is round 1 of the two-round questionnaire for the clinical experts (work package WP1). Before sending it, fill in the PPMI group sizes (from WP0) and the return details.
+- `docs/clinical_expert_questionnaire.md` is round 1 (v0.2) of the two-round questionnaire for the clinical experts (WP1). The PPMI group sizes from WP0 are filled in; add the return date and contact before sending.
 - `src/pdx/` is the analysis code for protocol v0.5 (3 November 2026). It contains:
   - the continuous-time engine, H-P with its conditional bootstrap, the speed estimates and localisation;
   - Step 1, the separate-graph reference and four comparators;
   - the simulators, the qualification harness, the engine gate and the WP0 audit.
 
-  Two independent reviews were run, their findings fixed, and 38 unit tests pass. `docs/code_map.md` maps each protocol section to its code and its checks, and lists what is not yet in code.
+  Two independent reviews were run, their findings fixed, and 41 unit tests pass. `docs/code_map.md` maps each protocol section to its code and its checks, and lists what is not yet in code.
 - **Compute is the main open issue.** At ten domains and about 1,450 synthetic participants, one likelihood evaluation takes about 2.5 s on the M4.
   - The speed-only fit needed 223 evaluations (about 9 minutes when run alone).
   - The free fit needed 375 evaluations from the null start (about 16 minutes), and the free model's second start comes on top.
-  - So a bootstrap replicate costs roughly half an hour, against the 1 minute per fit assumed in §8.8. The compute plan (D14) has to be revised once the engine gate has timed the real size.
-- There is no PPMI analysis yet; only synthetic checks have been run. The next step is the WP0 feasibility audit (aggregate counts only), which needs the investigator's approval.
+  - So a bootstrap replicate costs roughly half an hour, against the 1 minute per fit assumed in §8.8.
+  - In the WP0 power pilot (816 participants, 4 jobs at once), each fit pair took 2–5.4 hours (median 3.5), so this Mac completes about one fit pair an hour. At that rate, WP3's replicate numbers for family A would take about 5 months here.
+  - The compute plan (D14) has to be revised once the engine gate has timed the real size.
+- **WP0, the feasibility audit, ran on 3 November 2026**, with the investigator's approval, on the PPMI download of 13 October 2026. `docs/wp0_feasibility_report.md` has the results, aggregate counts only:
+  - 1,127 untreated sporadic participants: 804 TD, 209 PIGD, 114 indeterminate;
+  - 986 seen at the year-1 landmark (177 PIGD), with 3,727 transitions;
+  - 93% of intervals within 12 ± 3 months;
+  - findings that inform D5, D12, D16 and D26;
+  - the power check (the WP0 gate), which passed: H-P's power against one deviation of 2ε is above 99% at WP0's numbers (synthetic pilot).
+- **WP1 materials.** The round-1 questionnaire is v0.2: background numbers filled in, and Section E shortened to 31 candidate links with confidence ratings. `docs/measurement_reliability.md` collects the published reliabilities for D28.
+- `docs/RUNBOOK.md` gives step-by-step instructions for running every work package.
 
 Word versions for sharing are in `docs/`, built from the Markdown:
 
@@ -44,10 +53,12 @@ Word versions for sharing are in `docs/`, built from the Markdown:
 /usr/bin/python3 scripts/md_to_docx.py docs/methods_and_novelty_update.md docs/Methods_and_Novelty_Update.docx "Newer causal discovery methods and a second novelty check · addendum · 2 November 2026"
 /usr/bin/python3 scripts/md_to_docx.py docs/tsldiffpc_tsdci_investigation.md docs/tsLDiffPC_tsDCI_Investigation.docx "tsLDiffPC and tsDCI: framework, behaviour on our design, and use · investigation note · 3 November 2026"
 /usr/bin/python3 scripts/md_to_docx.py docs/step2_comparison_methods.md docs/Step2_Comparison_Methods.docx "Step 2 methods: what to apply when comparing phenotypes' causal mechanisms · investigation note · 3 November 2026"
-/usr/bin/python3 scripts/md_to_docx.py docs/clinical_expert_questionnaire.md docs/Clinical_Expert_Questionnaire_Round1_v0.1.docx "Phenotype causal discovery in PD · expert questionnaire, round 1 · v0.1"
+/usr/bin/python3 scripts/md_to_docx.py docs/clinical_expert_questionnaire.md docs/Clinical_Expert_Questionnaire_Round1_v0.2.docx "Phenotype causal discovery in PD · expert questionnaire, round 1 · v0.2"
+/usr/bin/python3 scripts/md_to_docx.py docs/wp0_feasibility_report.md docs/WP0_Feasibility_Report.docx "Phenotype causal discovery in PD · WP0 feasibility audit · 3 November 2026"
+/usr/bin/python3 scripts/md_to_docx.py docs/RUNBOOK.md docs/Runbook.docx "Phenotype causal discovery in PD · runbook · protocol v0.5"
 ```
 
-Earlier versions (protocol drafts v0.2, v0.3, v0.4 and v0.4.1) are in `docs/archive/`.
+Earlier versions (protocol drafts v0.2, v0.3, v0.4 and v0.4.1, questionnaire v0.1) are in `docs/archive/`.
 
 ## Running the code
 
@@ -81,7 +92,9 @@ Nothing is reused. The stopped run serves as pilot evidence (PROTOCOL.md §1.5 a
 | `tests/` | Unit tests, run with `tests/run_tests.py` (pytest is not installed) |
 | `configs/protocol_v0.5.toml` | The pre-specified constants |
 | `scripts/smoke_test.py`, `run_engine_gate.py`, `run_qualification.py` | Synthetic runs: the whole chain, the engine gate, the WP3 qualification |
-| `scripts/run_wp0_audit.py`, `run_hp_real.py` | Real-data runs; they refuse to start without the investigator's written approval (`--approval`) |
+| `scripts/build_ppmi_tables.py`, `run_wp0_audit.py`, `build_analysis_panel.py`, `run_hp_real.py` | Real-data runs (WP0, WP4): they refuse to start without the investigator's written approval (`--approval`), and keep participant-level tables in `data/` |
+| `scripts/run_power_check.py` | WP0's power gate, on synthetic data at WP0's counts |
+| `docs/RUNBOOK.md` | How to run every work package |
 | `scripts/md_to_docx.py` | Builds the Word versions |
 | `scripts/toy/` | Synthetic simulations behind the investigation report and the Step 2 note: speed versus pathway, speed varying within phenotypes (with the person-level test at larger cohort sizes), latent classes, named comparator families against the speed-adjusted Step 2 procedures (`toy_comparators*.py`), and tsLDiffPC/tsDCI re-implemented (`ts_ldiffpc.py`), validated against the paper (`toy_tsldiffpc_validation.py`) and run on our design (`toy_tsldiffpc.py`), and DYNOTEARS re-implemented (`dynotears.py`), validated against its paper (`toy_dynotears_validation.py`) and run on our design (`toy_dynotears.py`). Run from that folder with the ppmi-causal Python environment; no PPMI data |
 | `data/` | Later: participant-level tables (git-ignored; never shared) |

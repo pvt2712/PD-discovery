@@ -104,9 +104,22 @@ def _step(X, A, b, l, s, q, dt, c, rng, substeps=10):
 
 
 def simulate(truth: Truth, n: int, rng: np.random.Generator, visits=(4, 7), jitter: float = 0.15,
-             p_missing: float = 0.04, start_hazard=(-2.2, 1.0), dropout=(-4.0, 0.8),
-             keep_indeterminate: bool = False) -> tuple[Panel, dict]:
+             p_missing=0.04, start_hazard=(-2.2, 1.0), dropout=(-4.0, 0.8),
+             keep_indeterminate: bool = False, visit_probs: dict | None = None,
+             target_counts: tuple | None = None) -> tuple[Panel, dict]:
+    """Simulate n participants from year 0 (fewer remain after the phenotype rule).
+
+    visit_probs maps a number of visits from the landmark on (the landmark included) to its
+    probability, for example WP0's observed distribution, and replaces the uniform `visits` range; p_missing may be one
+    share or one per domain; target_counts = (n_TD, n_PIGD) subsamples the simulated phenotypes
+    to the given sizes (n must be large enough), so that the group sizes match real counts.
+    """
     d = truth.d
+    p_missing = np.broadcast_to(np.asarray(p_missing, float), (d,))
+    if visit_probs:
+        vk = np.array(sorted(visit_probs), int)
+        vp = np.array([visit_probs[k] for k in vk], float)
+        vp = vp / vp.sum()
     names = truth.domains
     i_trem, i_ax = names.index("tremor"), names.index("axial")
     i_ind = names.index("independence")
@@ -135,7 +148,7 @@ def simulate(truth: Truth, n: int, rng: np.random.Generator, visits=(4, 7), jitt
         g = ph[i]
         Ag = truth.A if g == TD else truth.A_pigd
         bg = truth.b[g]
-        T = rng.integers(visits[0], visits[1] + 1)
+        T = int(rng.choice(vk, p=vp)) if visit_probs else rng.integers(visits[0], visits[1] + 1)
         gaps = 1.0 + rng.uniform(-jitter, jitter, size=T)        # gap 0 is year 0 -> landmark
         times = np.cumsum(gaps)
         X = X0[i].copy()
@@ -174,6 +187,14 @@ def simulate(truth: Truth, n: int, rng: np.random.Generator, visits=(4, 7), jitt
         expos.append(np.array(e_rows))
         ons.append(np.array(o_rows))
     keep2 = [i for i in range(m) if len(ys[i]) >= 2]
+    if target_counts is not None:
+        sel = []
+        for g, k in zip((TD, PIGD), target_counts):
+            idx = [i for i in keep2 if ph[i] == g]
+            if len(idx) < k:
+                raise ValueError(f"only {len(idx)} participants of phenotype {g} for a target of {k}; raise n")
+            sel += list(rng.choice(idx, size=k, replace=False))
+        keep2 = sorted(sel)
     panel = Panel([ys[i] for i in keep2], [ts[i] for i in keep2], ph[keep2], z=z[keep2],
                   dose=[doses[i] for i in keep2], exposure=[expos[i] for i in keep2],
                   on=[ons[i] for i in keep2], domains=list(names), meta={"family": "A"},

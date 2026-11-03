@@ -3,13 +3,12 @@
 Guarded: it reads participant-level data, so it refuses to run without the investigator's
 written approval, reads only from data/ and writes aggregates only to results/.
 
-    python scripts/run_hp_real.py --panel data/derived/panel_tdpigd.npz --expert data/derived/expert_map.npy \
-        --meas-var data/derived/meas_var.npy --treat-mask data/derived/treat_mask.npy \
-        --approval "<who, date, document>"
+    python scripts/run_hp_real.py --expert configs/expert_map.json --approval "<who, date, document>"
 
-The panel (TD and PIGD participants) is built by the WP0/WP1 data pipeline (domains, orientation,
-normal scores, landmark, grid years), which is not part of this repository until the clinical
-panel fixes the domains (D6). The support is selected on this panel, so that every bootstrap
+The panel (TD and PIGD participants) and its specification come from
+scripts/build_analysis_panel.py (data/derived/panel_tdpigd.npz and panel_spec.json). The expert
+map is the frozen WP1 map, a JSON file of links by domain name (configs/expert_map_TEMPLATE.json
+shows the format); it holds no participant data. The support is selected on this panel, so that every bootstrap
 replicate repeats exactly the same selection; Step 1's reported map, from all participants, is a
 separate run. The bootstrap is checkpointed after every replicate and resumes from the
 checkpoint if the observed statistic is unchanged.
@@ -31,10 +30,9 @@ from pdx.step1 import Step1Config, make_support_fn
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--panel", required=True)
-    ap.add_argument("--expert", required=True, help="(d, d) boolean expert map [to, from], .npy")
-    ap.add_argument("--meas-var", required=True, help="(d,) fixed measurement-error variances, .npy (D28)")
-    ap.add_argument("--treat-mask", required=True, help="(d,) boolean treated domains, .npy (D24)")
+    ap.add_argument("--panel", default=str(_common.DATA / "derived" / "panel_tdpigd.npz"))
+    ap.add_argument("--spec", default=str(_common.DATA / "derived" / "panel_spec.json"))
+    ap.add_argument("--expert", required=True, help="the frozen expert map: JSON {'links': [[from, to], ...]}")
     ap.add_argument("--interval-in-step1", action="store_true", help="the §6.3 interval rule failed in WP0")
     ap.add_argument("--dose-in-step1", action="store_true", help="dose nodes in the Step 1 table")
     ap.add_argument("--approval", default=None)
@@ -42,13 +40,18 @@ def main():
     ap.add_argument("--out", default=str(_common.RESULTS / "wp4"))
     a = ap.parse_args()
     _common.require_approval(a.approval, "the WP4 analysis")
-    paths = [_common.require_inside(_common.Path(p), _common.DATA, "inputs")
-             for p in (a.panel, a.expert, a.meas_var, a.treat_mask)]
+    paths = [_common.require_inside(_common.Path(p), _common.DATA, "inputs") for p in (a.panel, a.spec)]
     out = _common.require_inside(_common.Path(a.out), _common.RESULTS, "the output")
     out.mkdir(parents=True, exist_ok=True)
     cfg = config.load()
     panel = load_panel(paths[0])
-    expert, mv, tm = (np.load(p, allow_pickle=False) for p in paths[1:])
+    pspec = json.loads(paths[1].read_text())
+    names = pspec["domains"]
+    expert = np.zeros((panel.d, panel.d), bool)
+    for frm, to in json.loads(open(a.expert).read())["links"]:
+        expert[names.index(to), names.index(frm)] = True
+    tm = np.isin(names, pspec["treated_domains"])
+    mv = np.array(pspec["meas_var"], float)
     spec = ModelSpec(d=panel.d, support=expert, p=panel.p, treat_mask=tm, meas_var=mv,
                      treatment=cfg["engine"]["treatment"], ed50=cfg["engine"]["ed50"],
                      ec50_ldr=cfg["engine"]["ec50_ldr"], n_quad=cfg["engine"]["n_quad"],

@@ -111,6 +111,9 @@ Known approximations:
 
 | Protocol | Code | Status |
 |---|---|---|
+| PPMI tables (§4, §5, §6.1): the PD cohort, enrolment and genetic status, visits with domain scores (item codes outside range set missing; screening values standing in for baseline), the OFF or untreated examination, LEDD, the annual grid's fixed visit order, Stebbins phenotypes, the provisional clinical subtype, the participant flow, the Part II endpoint | `ppmi.py` (`build`, `annual_grid`, `stebbins`, `clinical_subtype`, `flow_table`), `scripts/build_ppmi_tables.py` | `tests/test_ppmi.py` (a mock download with made-up participants); ran on PPMI on 3 November 2026 |
+| The H-P analysis panel: TD and PIGD seen at year 1, the pooled frozen normal scores, centred covariates, dose, exposure, examination state | `ppmi.py::analysis_panel`, `scripts/build_analysis_panel.py` | `test_analysis_panel_from_the_mock` |
+| WP0's power gate (synthetic, at WP0's counts, visits and missingness) | `scripts/run_power_check.py`; `family_a.simulate(visit_probs, target_counts, p_missing per domain)` | — |
 | Orientation and the frozen pooled normal-scores transform (mid-ranks) | `transforms.py` | `tests/test_transforms.py` |
 | WP0 audit: aggregate counts only, with disclosure control | `wp0.py`, `scripts/run_wp0_audit.py` | `tests/test_wp0.py`. Cross-tables are published with their own margins and complementary suppression, shares need denominators of at least `min_cell`, site sizes come in bands, and quantiles need at least 50 values. The interval share counts consecutive grid years only. The script refuses to run without `--approval`. Confirm the threshold of 5 against PPMI guidance. |
 | H-P, the speed estimates and localisation on the prepared PPMI panel | `scripts/run_hp_real.py` | Refuses to run without `--approval`. Reads only `data/` and writes only aggregates to `results/`. The bootstrap is checkpointed after every replicate. |
@@ -145,7 +148,7 @@ Harness and data safety:
 
 ## Not yet in code
 
-- **The PPMI data pipeline** (annual grid, landmark, phenotype rules, the panel). It waits for WP1 (domains, item scoring, motor state) and for approval.
+- **Fitting the simulators to PPMI's pooled population** (§8.2) and the definition-matched generator (§7.3.6). Both need approval.
 - **The second host (ctsem) and the continuous-time check (§7.12).** They need R packages (D23).
 - **Latent-threshold domains (D26)**, if the panel keeps a floor-bound domain.
 - **Exploratory Steps 3 and 4** (mixtures, random links), and S5/S6.

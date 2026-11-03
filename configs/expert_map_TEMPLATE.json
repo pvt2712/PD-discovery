@@ -1,0 +1,16 @@
+{
+  "status": "TEMPLATE, not the frozen map. WP1 replaces this with the panel's consensus map (configs/expert_map.json).",
+  "format": "links are [from, to] pairs of domain names, read as: 'from' this year directly changes 'to' next year",
+  "links": [
+    ["axial", "independence"],
+    ["axial", "cognition"],
+    ["cognition", "independence"],
+    ["tremor", "function"],
+    ["brady_rigidity", "function"],
+    ["autonomic", "independence"],
+    ["mood", "function"],
+    ["rbd", "cognition"],
+    ["function", "independence"],
+    ["axial", "function"]
+  ]
+}

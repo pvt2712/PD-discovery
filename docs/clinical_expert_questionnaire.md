@@ -1,6 +1,6 @@
 # Phenotype-specific progression in Parkinson's disease: expert questionnaire (round 1)
 
-> Version 0.1, 2 November 2026. Round 1 of a two-round questionnaire for the study "Phenotype-specific progression mechanisms in Parkinson's disease" (protocol draft v0.3). Please return it by [date] to [investigator name, email].
+> Version 0.2, 3 November 2026. Round 1 of a two-round questionnaire for the study "Phenotype-specific progression mechanisms in Parkinson's disease" (protocol draft v0.5). Please return it by [date] to [investigator name, email].
 
 ## About this questionnaire
 
@@ -15,9 +15,9 @@
 - Grids: type the code given above the grid into each cell.
 - Answer boxes: type in the box; it grows as you type.
 
-**Background numbers** (from PPMI; added before sending). Participants with a phenotype at their first visit:
-- tremor-dominant [n], PIGD [n], indeterminate [n];
-- mild-motor predominant [n], intermediate [n], diffuse malignant [n].
+**Background numbers** (from PPMI, data download of 13 October 2026). The study population is 1,127 people with sporadic Parkinson's disease who were untreated when they joined PPMI (430 in PPMI 1.0 and 697 in PPMI 2.0). By phenotype at their first visit:
+- tremor-dominant 804, PIGD 209, indeterminate 114 (Stebbins 2013 rule); 986 of the 1,127 were seen again a year later;
+- by a provisional clinical-subtype rule (Fereshtehnejad 2017): mild motor-predominant about 500, intermediate about 460, diffuse malignant about 160 (rounded to the nearest 10).
 
 ## Section 0. About you
 
@@ -235,29 +235,62 @@ Codes. Use: N = never, S = sometimes, O = often. Trust: 1 = not at all to 5 = co
 
 ## Section E. Which domains drive which: the progression map
 
-**E1.** For each pair, could the row domain **this year** directly change the column domain **next year**?
+This section is shorter than in version 0.1: instead of rating every pair of domains, you rate a list of candidate links, proposed in the literature or by the investigator, and add any the list misses. It does not show what PPMI's data suggest.
 
-Codes: **2** = strong direct effect, **1** = weak direct effect, **0** = no direct effect, **?** = unsure. Add **−** when the effect makes the column domain better (for example, treatment on bradykinesia: 2−). Read every domain as severity, so higher means worse: for independence read "loss of independence", for cognition "cognitive impairment", for treatment "a higher dose".
+**E1.** For each candidate, could the first domain **this year** directly change the second domain **next year**?
+- **Keep?** Y = this direct link is plausible, N = it is not, ? = unsure.
+- **Strength** (only for links you keep): **2** = strong direct effect, **1** = weak direct effect, **0** = no direct effect, **?** = unsure. Add **−** when the effect makes the second domain better (for example, treatment on bradykinesia: 2−).
+- **Confidence** in your answer: H = high, M = medium, L = low.
 
-Rate direct effects only. If tremor affects independence only by worsening daily function, rate Tremor → Daily function and Daily function → Independence, and give Tremor → Independence a 0. Each domain is assumed to affect itself next year (marked —). Leave rows and columns blank for domains you would drop.
+Read every domain as severity, so higher means worse: for independence read "loss of independence", for cognition "cognitive impairment", for treatment "a higher dose". Rate direct effects only: if tremor affects independence only by worsening daily function, keep Tremor → Daily function and Daily function → Independence, but not Tremor → Independence. Each domain is assumed to affect itself next year.
 
-| This year | Trem | Brady | Axial | ADL | Indep | Cog | Mood | Auto | Hall | Sleep | RBD | MC | Tx |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Trem | — | | | | | | | | | | | | |
-| Brady | | — | | | | | | | | | | | |
-| Axial | | | — | | | | | | | | | | |
-| ADL | | | | — | | | | | | | | | |
-| Indep | | | | | — | | | | | | | | |
-| Cog | | | | | | — | | | | | | | |
-| Mood | | | | | | | — | | | | | | |
-| Auto | | | | | | | | — | | | | | |
-| Hall | | | | | | | | | — | | | | |
-| Sleep | | | | | | | | | | — | | | |
-| RBD | | | | | | | | | | | — | | |
-| MC | | | | | | | | | | | | — | |
-| Tx | | | | | | | | | | | | | — |
+| # | Link (this year → next year) | Keep? | Strength | Confidence |
+|---|---|---|---|---|
+| | **Motor signs and daily life** | | | |
+| 1 | Tremor → Daily function | | | |
+| 2 | Bradykinesia and rigidity → Daily function | | | |
+| 3 | Axial and gait → Daily function | | | |
+| 4 | Daily function → Independence | | | |
+| 5 | Axial and gait → Independence | | | |
+| 6 | Bradykinesia and rigidity → Axial and gait | | | |
+| 7 | Motor complications → Daily function | | | |
+| 8 | Motor complications → Independence | | | |
+| | **Non-motor symptoms and daily life** | | | |
+| 9 | Cognition → Daily function | | | |
+| 10 | Cognition → Independence | | | |
+| 11 | Mood → Daily function | | | |
+| 12 | Mood → Independence | | | |
+| 13 | Autonomic → Independence | | | |
+| 14 | Hallucinations → Independence | | | |
+| 15 | Daytime sleepiness → Daily function | | | |
+| | **Between symptom domains** | | | |
+| 16 | Axial and gait → Cognition | | | |
+| 17 | Cognition → Hallucinations | | | |
+| 18 | RBD symptoms → Cognition | | | |
+| 19 | RBD symptoms → Hallucinations | | | |
+| 20 | Cognition → Mood | | | |
+| 21 | Mood → Cognition | | | |
+| 22 | Autonomic → Cognition | | | |
+| 23 | Daily function → Mood | | | |
+| | **Treatment: what drives a dose increase, and what treatment changes** | | | |
+| 24 | Tremor → Treatment (a higher dose) | | | |
+| 25 | Bradykinesia and rigidity → Treatment (a higher dose) | | | |
+| 26 | Daily function → Treatment (a higher dose) | | | |
+| 27 | Treatment → Bradykinesia and rigidity | | | |
+| 28 | Treatment → Axial and gait | | | |
+| 29 | Treatment → Motor complications | | | |
+| 30 | Treatment → Hallucinations | | | |
+| 31 | Treatment → Daytime sleepiness | | | |
 
-Legend: Trem = tremor; Brady = bradykinesia and rigidity; Axial = axial and gait; ADL = daily function; Indep = independence; Cog = cognition; Mood = mood; Auto = autonomic; Hall = hallucinations; Sleep = daytime sleepiness; RBD = RBD symptoms; MC = motor complications; Tx = dopaminergic treatment. The Tx column asks what drives a dose increase; the Tx row asks what treatment changes.
+**E1b.** Links missing from the list (up to five; give strength and confidence as above).
+
+| Link (this year → next year) | Strength | Confidence |
+|---|---|---|
+| | | |
+| | | |
+| | | |
+| | | |
+| | | |
 
 **E2.** Which links are impossible, beyond those the design already forbids (nothing can change age, sex or the past)?
 

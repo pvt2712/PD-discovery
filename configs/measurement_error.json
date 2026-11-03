@@ -1,0 +1,80 @@
+{
+ "status": "PROVISIONAL (D28): recommended values from docs/measurement_reliability.md (literature, 3 Nov 2026); to be confirmed by the statistician and the clinical panel in WP1, after the PPMI screening-baseline retest check (results/wp0/retest_reliability.json)",
+ "source": "docs/measurement_reliability.md v0.1",
+ "scale": "error variance on the pooled normal-scores scale = 1 - reliability",
+ "error_variance": {
+  "tremor": 0.3,
+  "brady_rigidity": 0.2,
+  "axial": 0.25,
+  "function": 0.2,
+  "independence": 0.35,
+  "cognition": 0.3,
+  "mood": 0.2,
+  "autonomic": 0.2,
+  "hallucinations": 0.4,
+  "sleepiness": 0.25,
+  "rbd": 0.25,
+  "complications": 0.3
+ },
+ "sensitivity_range_reliability": {
+  "tremor": [
+   0.55,
+   0.85
+  ],
+  "brady_rigidity": [
+   0.7,
+   0.9
+  ],
+  "axial": [
+   0.55,
+   0.9
+  ],
+  "function": [
+   0.7,
+   0.9
+  ],
+  "independence": [
+   0.5,
+   0.8
+  ],
+  "cognition": [
+   0.6,
+   0.8
+  ],
+  "mood": [
+   0.65,
+   0.9
+  ],
+  "autonomic": [
+   0.65,
+   0.9
+  ],
+  "hallucinations": [
+   0.4,
+   0.75
+  ],
+  "sleepiness": [
+   0.65,
+   0.85
+  ],
+  "rbd": [
+   0.55,
+   0.9
+  ],
+  "complications": [
+   0.5,
+   0.85
+  ]
+ },
+ "ppmi_retest_check": {
+  "pairs": 413,
+  "median_gap_days": 31,
+  "icc": {
+   "tremor": 0.8,
+   "brady_rigidity": 0.82,
+   "axial": 0.75,
+   "function": 0.81
+  },
+  "source": "results/wp0/retest_reliability.json (aggregate)"
+ }
+}

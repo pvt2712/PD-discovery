@@ -21,7 +21,8 @@ import numpy as np
 from scipy import stats
 
 from .engine.model import ModelSpec
-from .hp import warp_replicate
+from .engine.fit import fit_pair
+from .hp import h_p_df, lr_stat, warp_replicate
 from .sim import scenarios
 from .speed import sp1, sp3
 from .step1 import Step1Config, make_support_fn
@@ -52,7 +53,13 @@ def dataset_task(task: dict) -> dict:
     if task.get("step1", True):
         support_fn = make_support_fn(info["support"], Step1Config(**task.get("step1_cfg", {})))
     t0 = time.time()
-    r = warp_replicate(panel, spec, support_fn, rng, task.get("fit_kw", {}))
+    if task.get("replicate", True):
+        r = warp_replicate(panel, spec, support_fn, rng, task.get("fit_kw", {}))
+    else:                                  # power only: the observed statistic, no bootstrap replicate
+        spec_s = spec if support_fn is None else spec.with_support(support_fn(panel))
+        g0, g1 = fit_pair(panel, spec_s, **task.get("fit_kw", {}))
+        r = {"lr": lr_stat(g0, g1), "lr_star": float("nan"), "replicate_ok": False, "replicate_converged": False,
+             "converged": bool(g0.success and g1.success), "df": h_p_df(spec_s), "null_fit": g0, "free_fit": g1}
     f0, f1 = r["null_fit"], r["free_fit"]
     return {"task": task, "config": config_key(task), "scenario": task["scenario"],
             "family": task.get("family", "A"), "seed": task["seed"],
