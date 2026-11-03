@@ -1,0 +1,54 @@
+{
+ "slow_speed": {
+  "R": 100,
+  "random_speed_reject": 0.07,
+  "random_mcse": 0.02551470164434615,
+  "pooled_reject": 0.12,
+  "pooled_mcse": 0.03249615361854384,
+  "lrt_random_mean": 8.204243101282845,
+  "lrt_pooled_mean": 8.978976357757746,
+  "speed_ratio_random_median": 2.0251081207122477,
+  "speed_ratio_pooled_median": 1.9611130758264423,
+  "converged": 1.0,
+  "lrt_negative": 0.0
+ },
+ "slow_speed+mech": {
+  "R": 50,
+  "random_speed_reject": 0.88,
+  "random_mcse": 0.04595650117230423,
+  "pooled_reject": 0.84,
+  "pooled_mcse": 0.051845925587262885,
+  "lrt_random_mean": 27.66665495076748,
+  "lrt_pooled_mean": 27.084109413391925,
+  "speed_ratio_random_median": 2.2377417304789606,
+  "speed_ratio_pooled_median": 2.201533586684096,
+  "converged": 1.0,
+  "lrt_negative": 0.0
+ },
+ "fast_speed": {
+  "R": 100,
+  "random_speed_reject": 0.03,
+  "random_mcse": 0.01705872210923198,
+  "pooled_reject": 0.09,
+  "pooled_mcse": 0.02861817604250837,
+  "lrt_random_mean": 8.388796050317119,
+  "lrt_pooled_mean": 9.687256457506045,
+  "speed_ratio_random_median": 2.0074712840961944,
+  "speed_ratio_pooled_median": 1.9294601081809433,
+  "converged": 1.0,
+  "lrt_negative": 0.0
+ },
+ "fast_speed+mech": {
+  "R": 50,
+  "random_speed_reject": 1.0,
+  "random_mcse": 0.0,
+  "pooled_reject": 0.98,
+  "pooled_mcse": 0.019798989873223337,
+  "lrt_random_mean": 45.77014124061006,
+  "lrt_pooled_mean": 41.589822647634065,
+  "speed_ratio_random_median": 2.3661183182572145,
+  "speed_ratio_pooled_median": 2.2571588390286363,
+  "converged": 1.0,
+  "lrt_negative": 0.0
+ }
+}

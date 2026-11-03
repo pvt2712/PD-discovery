@@ -1,0 +1,18 @@
+# PPMI data-use agreement: participant-level tables, the fitted simulator and every per-row array stay in data/ and
+# are never shared. The file types below are participant-level by default wherever they appear.
+data/
+*.npz
+*.npy
+*.parquet
+*.feather
+*.csv
+*.pkl
+*.pickle
+# generated outputs (aggregates); kept out of git until the investigator decides what to share
+results/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+# Word lock files
+~$*

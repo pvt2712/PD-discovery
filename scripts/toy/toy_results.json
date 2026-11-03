@@ -1,0 +1,244 @@
+{
+ "speed": {
+  "R": 500,
+  "mean_links_TD_PIGD": {
+   "Brady->Axial": [
+    0.122,
+    0.201
+   ],
+   "Axial->Function": [
+    0.164,
+    0.27
+   ],
+   "Function->Independence": [
+    0.205,
+    0.335
+   ],
+   "Cognition->Independence": [
+    0.123,
+    0.201
+   ],
+   "Axial->Independence": [
+    0.021,
+    0.068
+   ],
+   "Brady->Independence": [
+    0.01,
+    0.042
+   ],
+   "Axial->Cognition": [
+    0.003,
+    0.011
+   ],
+   "Mood->Independence": [
+    0.007,
+    0.019
+   ]
+  },
+  "true_B_TD": [
+   [
+    0.819,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.123,
+    0.819,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.003,
+    0.819,
+    0.082,
+    0.0,
+    0.0
+   ],
+   [
+    0.005,
+    0.065,
+    0.0,
+    0.819,
+    0.0,
+    0.0
+   ],
+   [
+    0.094,
+    0.164,
+    0.0,
+    0.0,
+    0.819,
+    0.0
+   ],
+   [
+    0.011,
+    0.021,
+    0.123,
+    0.006,
+    0.205,
+    0.819
+   ]
+  ],
+  "naive_struct_mean": 3.248,
+  "diff_bh_mean": 4.788,
+  "diff_bh_any": 1.0,
+  "stronger_mean": 4.37,
+  "struct_like_mean": 0.394,
+  "s_hat_mean": 2.008908731514988,
+  "s_hat_sd": 0.06974284573211031,
+  "speed_test_reject": 0.056,
+  "speed_test_reject_mcse": 0.010282412168358162,
+  "top_dev_counts": {
+   "Brady->Mood": 16,
+   "Brady->Function": 19,
+   "Cognition->Axial": 19,
+   "Cognition->Mood": 15,
+   "Axial->Function": 15,
+   "Mood->Cognition": 14,
+   "Mood->Brady": 20,
+   "Function->Mood": 12,
+   "Function->Independence": 8,
+   "Function->Axial": 24,
+   "Cognition->Independence": 15,
+   "Mood->Function": 15,
+   "Independence->Cognition": 26,
+   "Brady->Independence": 12,
+   "Mood->Axial": 14,
+   "Cognition->Function": 18,
+   "Axial->Independence": 18,
+   "Brady->Cognition": 18,
+   "Independence->Axial": 22,
+   "Axial->Cognition": 23,
+   "Independence->Function": 23,
+   "Independence->Brady": 15,
+   "Function->Brady": 12,
+   "Axial->Mood": 8,
+   "Independence->Mood": 18,
+   "Function->Cognition": 11,
+   "Brady->Axial": 20,
+   "Mood->Independence": 17,
+   "Cognition->Brady": 14,
+   "Axial->Brady": 19
+  }
+ },
+ "speed+mech": {
+  "R": 500,
+  "mean_links_TD_PIGD": {
+   "Brady->Axial": [
+    0.123,
+    0.202
+   ],
+   "Axial->Function": [
+    0.164,
+    0.269
+   ],
+   "Function->Independence": [
+    0.206,
+    0.336
+   ],
+   "Cognition->Independence": [
+    0.123,
+    0.2
+   ],
+   "Axial->Independence": [
+    0.021,
+    0.231
+   ],
+   "Brady->Independence": [
+    0.011,
+    0.064
+   ],
+   "Axial->Cognition": [
+    0.003,
+    0.011
+   ],
+   "Mood->Independence": [
+    0.006,
+    0.019
+   ]
+  },
+  "true_B_TD": [
+   [
+    0.819,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.123,
+    0.819,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.003,
+    0.819,
+    0.082,
+    0.0,
+    0.0
+   ],
+   [
+    0.005,
+    0.065,
+    0.0,
+    0.819,
+    0.0,
+    0.0
+   ],
+   [
+    0.094,
+    0.164,
+    0.0,
+    0.0,
+    0.819,
+    0.0
+   ],
+   [
+    0.011,
+    0.021,
+    0.123,
+    0.006,
+    0.205,
+    0.819
+   ]
+  ],
+  "naive_struct_mean": 3.402,
+  "diff_bh_mean": 5.986,
+  "diff_bh_any": 1.0,
+  "stronger_mean": 4.882,
+  "struct_like_mean": 1.082,
+  "s_hat_mean": 2.145741693521513,
+  "s_hat_sd": 0.07545209885416099,
+  "speed_test_reject": 0.908,
+  "speed_test_reject_mcse": 0.012925633446759966,
+  "top_dev_counts": {
+   "Independence->Brady": 1,
+   "Mood->Axial": 1,
+   "Mood->Brady": 1,
+   "Axial->Independence": 485,
+   "Cognition->Function": 1,
+   "Axial->Mood": 1,
+   "Cognition->Mood": 1,
+   "Axial->Function": 1,
+   "Cognition->Independence": 1,
+   "Mood->Independence": 1,
+   "Cognition->Brady": 1,
+   "Axial->Cognition": 1,
+   "Independence->Function": 1,
+   "Brady->Independence": 1,
+   "Independence->Cognition": 1,
+   "Mood->Cognition": 1
+  }
+ }
+}

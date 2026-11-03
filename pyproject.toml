@@ -1,0 +1,24 @@
+[project]
+name = "pdx"
+version = "0.5.0"
+description = "Phenotype discovery in PPMI: speed-adjusted causal discovery (protocol v0.5)"
+requires-python = ">=3.11"
+# pinned to the versions the code was tested with (the ppmi-causal environment, Python 3.13.12);
+# step1.py replaces one function of causal-learn 0.1.4.8, so check it before changing that pin
+dependencies = [
+    "numpy==2.5.4",
+    "scipy==1.18.1",
+    "torch==2.14.1",
+    "pandas==3.0.6",
+    "causal-learn==0.1.4.8",
+]
+
+[project.optional-dependencies]
+test = ["statsmodels==0.15.0"]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

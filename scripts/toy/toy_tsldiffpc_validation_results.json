@@ -1,0 +1,166 @@
+{
+ "tsdci": {
+  "single": {
+   "3": {
+    "strict_mean": 0.7777777777777778,
+    "strict_se": 0.07381820431443555,
+    "relaxed_mean": 0.7777777777777778,
+    "reported_strict": 0.83
+   },
+   "5": {
+    "strict_mean": 0.8111111111111111,
+    "strict_se": 0.07090607413692025,
+    "relaxed_mean": 0.8111111111111111,
+    "reported_strict": 0.6
+   },
+   "7": {
+    "strict_mean": 0.6333333333333333,
+    "strict_se": 0.08948554539839962,
+    "relaxed_mean": 0.6333333333333333,
+    "reported_strict": 0.73
+   },
+   "9": {
+    "strict_mean": 0.7,
+    "strict_se": 0.08509629433967632,
+    "relaxed_mean": 0.7,
+    "reported_strict": 0.8
+   }
+  },
+  "all": {
+   "3": {
+    "strict_mean": 0.7611111111111111,
+    "strict_se": 0.07396943439252991,
+    "relaxed_mean": 0.7611111111111111,
+    "reported_strict": 0.83
+   },
+   "5": {
+    "strict_mean": 0.8222222222222222,
+    "strict_se": 0.0691738021215939,
+    "relaxed_mean": 0.8222222222222222,
+    "reported_strict": 0.67
+   },
+   "7": {
+    "strict_mean": 0.9555555555555556,
+    "strict_se": 0.03477103848134384,
+    "relaxed_mean": 0.9555555555555556,
+    "reported_strict": 0.79
+   },
+   "9": {
+    "strict_mean": 0.7,
+    "strict_se": 0.08509629433967632,
+    "relaxed_mean": 0.7,
+    "reported_strict": 0.9
+   }
+  },
+  "min2": {
+   "3": {
+    "strict_mean": 0.7666666666666667,
+    "strict_se": 0.06808829066491902,
+    "relaxed_mean": 0.7666666666666667,
+    "reported_strict": 0.65
+   },
+   "5": {
+    "strict_mean": 0.7277777777777777,
+    "strict_se": 0.07767508272249994,
+    "relaxed_mean": 0.7277777777777777,
+    "reported_strict": 0.87
+   },
+   "7": {
+    "strict_mean": 0.6333333333333333,
+    "strict_se": 0.08509629433967632,
+    "relaxed_mean": 0.6333333333333333,
+    "reported_strict": 0.69
+   },
+   "9": {
+    "strict_mean": 0.9111111111111111,
+    "strict_se": 0.04776842107435617,
+    "relaxed_mean": 0.9111111111111111,
+    "reported_strict": 0.77
+   }
+  }
+ },
+ "tsldiffpc": {
+  "single": {
+   "3": {
+    "strict_mean": 0.05555555555555555,
+    "strict_se": 0.03941893838344699,
+    "relaxed_mean": 0.5833333333333334,
+    "reported_strict": 0.17
+   },
+   "5": {
+    "strict_mean": 0.01111111111111111,
+    "strict_se": 0.011111111111111112,
+    "relaxed_mean": 0.6333333333333334,
+    "reported_strict": 0.0
+   },
+   "7": {
+    "strict_mean": 0.0,
+    "strict_se": 0.0,
+    "relaxed_mean": 0.5777777777777777,
+    "reported_strict": 0.03
+   },
+   "9": {
+    "strict_mean": 0.0,
+    "strict_se": 0.0,
+    "relaxed_mean": 0.5555555555555555,
+    "reported_strict": 0.0
+   }
+  },
+  "all": {
+   "3": {
+    "strict_mean": 0.13888888888888887,
+    "strict_se": 0.05984405731777988,
+    "relaxed_mean": 0.6666666666666667,
+    "reported_strict": 0.17
+   },
+   "5": {
+    "strict_mean": 0.36666666666666664,
+    "strict_se": 0.08948554539839962,
+    "relaxed_mean": 0.7000000000000001,
+    "reported_strict": 0.17
+   },
+   "7": {
+    "strict_mean": 0.3,
+    "strict_se": 0.08509629433967632,
+    "relaxed_mean": 0.7444444444444446,
+    "reported_strict": 0.33
+   },
+   "9": {
+    "strict_mean": 0.36666666666666664,
+    "strict_se": 0.08948554539839962,
+    "relaxed_mean": 0.7444444444444446,
+    "reported_strict": 0.5
+   }
+  },
+  "min2": {
+   "3": {
+    "strict_mean": 0.6555555555555554,
+    "strict_se": 0.08678055195451839,
+    "relaxed_mean": 0.8333333333333334,
+    "reported_strict": 0.72
+   },
+   "5": {
+    "strict_mean": 0.6555555555555554,
+    "strict_se": 0.08678055195451839,
+    "relaxed_mean": 0.7888888888888889,
+    "reported_strict": 0.77
+   },
+   "7": {
+    "strict_mean": 0.7333333333333333,
+    "strict_se": 0.0821175682735253,
+    "relaxed_mean": 0.8444444444444444,
+    "reported_strict": 0.83
+   },
+   "9": {
+    "strict_mean": 0.8333333333333334,
+    "strict_se": 0.06920456654478331,
+    "relaxed_mean": 0.9222222222222223,
+    "reported_strict": 0.7
+   }
+  }
+ },
+ "secs_median": {
+  "tsdci": 0.17345046997070312,
+  "tsldiffpc": 0.19720792770385742
+ }
+}

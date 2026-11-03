@@ -1,0 +1,53 @@
+# Pre-specified constants of protocol v0.5. Values marked provisional are fixed in WP2/WP3 (D10, D12,
+# D22) and changed here only through the time-stamped amendment.
+
+[hp]                       # §2.4, §7.3.1
+alpha = 0.05
+n_max = 999                # bootstrap replicates at most
+h = 20                     # Besag-Clifford stopping count
+n_max_rbd = 199            # secondary axis
+
+[engine]                   # §7.1
+n_quad = 12                # checked against 20 and 30 at the engine gate
+treatment = "emax"         # D24; "linear" if the curve is not identified
+ed50 = 3.0                 # 100 mg LEDD units (provisional)
+ec50_ldr = 3.0
+noise_era_col = 0          # era shifts the noise (§2.3)
+
+[speed]                    # §2.5
+bootstrap = 200
+level = 0.95
+
+[localisation]             # §7.1, §7.3.2-§7.3.4
+eps = 0.10                 # D12, provisional; 0.05 as sensitivity
+eps_sensitivity = 0.05
+near_zero = 0.05           # reference entries below this are left out of the speed ratios (provisional)
+mc_draws = 2000
+n_lambda = 12
+half_samples = 50
+bic_units = "participants"
+
+[step1]                    # §7.2, §6.3
+alpha = 0.05
+depth_fast = 3
+test_fast = "fisherz"
+test_full = "cluster_fisherz"   # one WP3 candidate (D9)
+max_dt = 1.5
+interval_rule_share = 0.90      # annual tables if >= 90% of intervals lie within 12 +- 3 months
+
+[separate_graphs]          # §7.3.5
+n_sub = 25
+frac = 0.9
+n_perm = 50
+threshold = 0.25           # provisional (D10)
+
+[qualification]            # §8.6, §8.7
+bradley = 0.075
+family_a_main = 500        # datasets in S0 and S1 (warp-speed)
+family_a_secondary = 100   # S0L, S1S, S1T, S1V, S4, S7
+family_b = 300
+power = 200
+speed_coverage_datasets = 30
+speed_coverage_bootstrap = 100
+coverage_target = 0.90
+max_jobs = 4
