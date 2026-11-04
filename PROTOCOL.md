@@ -1318,6 +1318,8 @@ Part I's map informs the choice of confounders; it gives no causal licence by it
 | D26 | Floor- and ceiling-bound domains | A latent-threshold model for a domain with more than half of its scores at a bound, or its removal from H-P's support | Clinical panel and statistician | WP1 |
 | D27 | Primary test and estimand | H-P (TD versus PIGD) as the only primary test; the estimand is the speed-adjusted dynamics of observed scores under observed care, among participants observed at year 1 | Investigator, supervisors and statistician | WP2 |
 | D28 | Measurement-error variances | Fixed from published test–retest reliabilities collected in WP1; estimated as sensitivity | Statistician and clinical panel | WP1 |
+| D29 | Where the question of phenotype-specific levodopa escalation goes | Decided on 4 November 2026: experiment 2 (the escalation study, `escalation-study-v2`), with the phenotype as a pre-specified modifier of its Q1 (what drives escalation) and Q5 (for whom escalation differs). This protocol stays on progression | Investigator | Decided 4 November 2026, before any H-P result on PPMI had been seen |
+| D30 | An exploratory look at H-P on PPMI before WP1–WP3 | Run on the investigator's instruction of 4 November 2026 with the provisional, investigator-led map `configs/expert_map_provisional.json` (as D25 allows), the default domains and OFF-state examinations. Its results are exploratory, and a later confirmatory analysis is no longer blind to them (§10) | Investigator | 4 November 2026 |
 
 ## 18. Timeline (provisional)
 
@@ -1558,6 +1560,10 @@ Aggregates from `../escalation-discovery` (its PROTOCOL.md §3, §10.1 and §12,
 | Provenance | Entry date, correction history, instrument version | Audit trail and quality flags |
 
 ## Appendix D. Changes from v0.3, v0.4 and v0.4.1
+
+**After v0.5 (4 November 2026): two decisions, recorded before any H-P result on PPMI had been seen.**
+- **D29, phenotype and levodopa escalation.** Whether TD and PIGD reach levodopa dose escalation by different routes is a question about treatment decisions, with confounding by indication. It moves to experiment 2 (the escalation study), as a pre-specified phenotype modifier of its Q1 and Q5. This protocol keeps progression as its question.
+- **D30, an exploratory first look.** On the investigator's instruction, H-P was run on PPMI before WP1–WP3. It used the provisional map in `configs/expert_map_provisional.json`, which was built from the earlier v4.1 expert map and revised against the clinical guidelines, and `scripts/run_hp_real.py --first-look` or the full run. Its results are exploratory. The confirmatory analysis would still need the frozen map, a passed H-M1 and registration.
 
 **v0.5 (3 November 2026): changes from v0.4.1,** which is archived as `docs/archive/PROTOCOL_v0.4.1.md`. The study is narrowed to one primary test, speed becomes a family of key secondary estimates, and an external deep review of v0.4.1 is taken in.
 - **Focus (Summary, §2).**

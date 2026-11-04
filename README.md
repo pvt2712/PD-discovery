@@ -28,7 +28,7 @@ Design stage.
   - Step 1, the separate-graph reference and four comparators;
   - the simulators, the qualification harness, the engine gate and the WP0 audit.
 
-  Two independent reviews were run, their findings fixed, and 49 unit tests pass. `docs/code_map.md` maps each protocol section to its code and its checks, and lists what is not yet in code.
+  Two independent reviews were run, their findings fixed, and the unit tests pass (50 by default, plus 3 slow ones run with `PDX_SLOW=1`). `docs/code_map.md` maps each protocol section to its code and its checks, and lists what is not yet in code.
 - **Compute is the main open issue.** At ten domains and about 1,450 synthetic participants, one likelihood evaluation takes about 2.5 s on the M4.
   - The speed-only fit needed 223 evaluations (about 9 minutes when run alone).
   - The free fit needed 375 evaluations from the null start (about 16 minutes), and the free model's second start comes on top.
@@ -72,7 +72,7 @@ The code uses the ppmi-causal Python environment (Python 3.13 with numpy, scipy,
 
 ```
 PY="../ppmi-causal/.venv/bin/python"
-$PY tests/run_tests.py                 # unit tests, about 2 minutes
+$PY tests/run_tests.py                 # unit tests, about 3 minutes
 $PY scripts/smoke_test.py --n 300      # the whole chain on one small synthetic dataset
 $PY scripts/run_engine_gate.py --quick # the engine-gate harness at small size
 ```

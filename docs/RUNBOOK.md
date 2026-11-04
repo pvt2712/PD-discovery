@@ -9,6 +9,7 @@
 ```
 cd "/Users/thaipham/Documents/PhD/parkinson/paper 2/phenotype-discovery"
 PY="../ppmi-causal/.venv/bin/python"
+export PYTHONHASHSEED=0      # Step 1 gives the same answer on every run (code guide §8, A8)
 ```
 
 The code uses the ppmi-causal Python environment (Python 3.13 with numpy, scipy, torch, pandas, causal-learn and statsmodels); nothing new needs installing. pytest is not installed, so the tests have their own runner.
@@ -45,7 +46,7 @@ The code uses the ppmi-causal Python environment (Python 3.13 with numpy, scipy,
 ## 1. Check the installation (minutes)
 
 ```
-$PY tests/run_tests.py                  # 49 unit tests, about 3 minutes; all must pass
+$PY tests/run_tests.py                  # 50 unit tests, about 3 minutes; all must pass (PDX_SLOW=1 adds 3 slow ones)
 $PY scripts/smoke_test.py --n 300       # the whole chain on one small synthetic dataset, about 15-25 minutes
 $PY scripts/run_engine_gate.py --quick  # the engine-gate harness at small size, about 15-25 minutes
 ```
@@ -185,6 +186,7 @@ caffeinate -i nohup $PY scripts/run_hp_real.py --expert configs/expert_map.json 
 - **Checkpointing.** H-P's bootstrap and the speed bootstrap save `results/wp4/hp_tdpigd_checkpoint.json` after every replicate or sample. If the run stops, run the same command again: it resumes when the observed statistic is unchanged.
 - **Progress** is printed and appended to `results/wp4/hp_tdpigd.log`.
 - **Shorter runs.** `--n-max` caps H-P's bootstrap, for example at 199, which gives p-values down to 0.005. `--speed-bootstrap` sets the number of speed samples. The report records both.
+- **Restarting.** Restart with the same command on the same machine. On a restart the observed fits are recomputed, and the saved replicates are kept only if the statistic matches to 1e-6: a change of `--threads` or of machine can shift it by more and discard them. Do not lower `--n-max` during a run.
 - **Parallel jobs.** `--jobs N` runs N bootstrap replicates, then N speed samples, at once. Each replicate has its own seed, and Besag–Clifford's rule is applied in replicate order, so the p-value does not depend on N (to the fits' numerical tolerance).
 - **Output.** `results/wp4/hp_tdpigd.json`, aggregates only.
 - **Duration.** At 10 domains, the replicates run one at a time, at roughly 30–40 minutes each.

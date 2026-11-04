@@ -30,9 +30,10 @@
 4. **Check the installation.** All tests must pass; this takes about 3–5 minutes:
    ```powershell
    $env:PYTHONUTF8 = "1"
+$env:PYTHONHASHSEED = "0"
    .\.venv\Scripts\python.exe tests\run_tests.py
    ```
-   `PYTHONUTF8=1` makes Python read and write text as UTF-8, as on the Mac. It lasts until the window is closed, so set it in every new PowerShell window before running anything.
+   `PYTHONUTF8=1` makes Python read and write text as UTF-8, as on the Mac. `PYTHONHASHSEED=0` fixes Python's hash seed, so Step 1's causal-discovery algorithm gives the same answer on every run (code guide §8, item A8). Both last until the window is closed, so set them in every new PowerShell window before running anything.
 
 ## 2. Before the long run
 
@@ -45,6 +46,7 @@
 ```powershell
 cd C:\work\phenotype-discovery
 $env:PYTHONUTF8 = "1"
+$env:PYTHONHASHSEED = "0"
 .\.venv\Scripts\python.exe scripts\run_engine_gate.py --wp0 --d 10 --datasets 20 --jobs 5
 ```
 
@@ -55,7 +57,7 @@ $env:PYTHONUTF8 = "1"
   Get-Content C:\work\phenotype-discovery\results\engine_gate\gate_wp0_d10.log -Wait -Tail 20
   ```
 - **If it stops,** run the same three lines again. That covers a closed window, a restart, Ctrl+C or an error. Finished sections, dispersed-start fits, recovery datasets and profiles are kept in `results\engine_gate\gate_wp0_d10.partial.json` and skipped.
-- **The time** depends on the PC's processor and memory speed. The first sections (the reference checks, the gate dataset's fit, quadrature, identification) run one at a time; the rest run in parallel. With 5 jobs, expect roughly a day, against the Mac's 1.5–2 days in one process.
+- **The time** depends on the PC's processor and memory speed. The reference checks, the gate dataset's fit, quadrature, identification and the final timing run one at a time; the dispersed starts, profiles and recovery datasets run in parallel. With 5 jobs, expect roughly a day, against the Mac's 1.5–2 days in one process.
 - **When it finishes,** the last log line says whether all automatic checks pass. The report is `results\engine_gate\gate_wp0_d10.json`. Copy it and the log to the Mac's `results/engine_gate/` folder, by USB stick or your own cloud drive; both are synthetic. Then ask Claude to read them, or follow `docs/RUNBOOK.md` §4.
 
 ## 4. Optional: choose the number of jobs first (10 minutes)
@@ -120,6 +122,7 @@ cd C:\work\phenotype-discovery
 git pull
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
 $env:PYTHONUTF8 = "1"
+$env:PYTHONHASHSEED = "0"
 $AP = "Investigator, 4 November 2026: exploratory run before WP1-WP3"
 .\.venv\Scripts\python.exe scripts\build_ppmi_tables.py --raw "D:\PPMI\raw" --approval $AP
 .\.venv\Scripts\python.exe scripts\run_wp0_audit.py --visits data\derived\wp0_visits.parquet --approval $AP
@@ -157,6 +160,7 @@ Then put both files in `data\derived\`.
 
 ```powershell
 $env:PYTHONUTF8 = "1"
+$env:PYTHONHASHSEED = "0"
 .\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --first-look --approval "Investigator, 4 November 2026: exploratory run before WP1-WP3"
 ```
 
@@ -164,6 +168,7 @@ $env:PYTHONUTF8 = "1"
 
 ```powershell
 $env:PYTHONUTF8 = "1"
+$env:PYTHONHASHSEED = "0"
 .\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 5 --approval "Investigator, 4 November 2026: exploratory run before WP1-WP3"
 ```
 
@@ -174,7 +179,7 @@ $env:PYTHONUTF8 = "1"
   - The bootstrap stops once 20 replicates reach the observed statistic. If H-P is far from rejecting, that takes about 40 replicates: a day one at a time, perhaps 12–16 hours with 5 jobs.
   - If H-P rejects, it runs to the cap: 199 replicates, which gives p-values down to 0.005. That is about 5 days one at a time and roughly 3 days with 5 jobs. Without `--n-max` the cap is the protocol's 999.
   - The speed bootstrap then adds 100 samples: about 2–3 days one at a time, roughly 1.5 days with 5 jobs.
-- **If it stops,** run the same command again. Every replicate and speed sample is kept in `results\wp4\hp_tdpigd_checkpoint.json`.
+- **If it stops,** run the same command again, unchanged and on the same PC. Every replicate and speed sample is kept in `results\wp4\hp_tdpigd_checkpoint.json`. On a restart the two observed fits are recomputed, about an hour, and the saved replicates are kept only if the statistic comes out the same. A different `--threads` setting or another machine can shift it slightly and discard them, and a lower `--n-max` would give a wrong p-value. `--jobs` may change.
 - **Progress** is printed and appended to `results\wp4\hp_tdpigd.log`.
 - **One run at a time.** Run H-P and the engine gate one after the other: each already uses the processor fully with `--jobs`, so running both at once only slows each.
 - **Outputs** are aggregates only: `results\wp4\hp_first_look.json` or `hp_tdpigd.json`, with their logs. Copy them back to the Mac's `results/wp4/` folder.
