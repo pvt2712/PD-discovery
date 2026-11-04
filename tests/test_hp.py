@@ -1,4 +1,5 @@
 import numpy as np
+from helpers import slow
 
 from pdx.hp import sequential_p
 
@@ -33,3 +34,19 @@ def test_null_p_values_are_uniform():
     ps = np.array(ps)
     assert abs((ps <= 0.05).mean() - 0.05) < 0.015
     assert abs((ps <= 0.5).mean() - 0.5) < 0.04
+
+
+@slow
+def test_speed_bootstrap_resumed_midway_gives_the_same_intervals():
+    from helpers import small_panel, spec_for
+    from pdx.engine.fit import fit_pair
+    from pdx.speed import bootstrap_speed
+    panel, info = small_panel("S1", n=80, seed=4)
+    spec = spec_for(panel, info)
+    f0, f1 = fit_pair(panel, spec)
+    seen = []
+    full = bootstrap_speed(panel, spec, f0, f1, B=2, rng=np.random.default_rng(7),
+                           on_sample=lambda done: seen.append({k: (list(v) if isinstance(v, list) else v)
+                                                               for k, v in done.items()}))
+    resumed = bootstrap_speed(panel, spec, f0, f1, B=2, rng=np.random.default_rng(7), done=seen[0])
+    assert len(seen) == 2 and resumed["sp1_ci"] == full["sp1_ci"] and resumed["B_used"] == full["B_used"]

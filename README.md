@@ -40,6 +40,7 @@ Design stage.
   - The Mac finished the reference, gradient and quadrature checks.
   - At WP0's size, 12 quadrature nodes miss the gate's rule (`docs/RUNBOOK.md`, §4). H-P's statistic barely moves, but the number of nodes must be decided before the freeze.
   - The rest of the gate moves to a Windows PC; `docs/run_on_windows.md` covers setup and running there.
+- **An exploratory first look at H-P on PPMI (4 November 2026)** ran on the investigator's instruction, before WP1–WP3. It used the provisional map in `configs/expert_map_provisional.json` and the observed fits only (`scripts/run_hp_real.py --first-look`, `docs/RUNBOOK.md` §6). Its result is exploratory.
 - **WP0, the feasibility audit, ran on 3 November 2026**, with the investigator's approval, on the PPMI download of 13 October 2026. `docs/wp0_feasibility_report.md` has the results, aggregate counts only:
   - 1,127 untreated sporadic participants: 804 TD, 209 PIGD, 114 indeterminate;
   - 986 seen at the year-1 landmark (177 PIGD), with 3,727 transitions;
@@ -96,8 +97,9 @@ Nothing is reused. The stopped run serves as pilot evidence (PROTOCOL.md §1.5 a
 | `src/pdx/` | Analysis code for protocol v0.5 (see `docs/code_map.md`) |
 | `tests/` | Unit tests, run with `tests/run_tests.py` (pytest is not installed) |
 | `configs/protocol_v0.5.toml` | The pre-specified constants |
+| `configs/expert_map_provisional.json` | A provisional map for the exploratory first look (4 November 2026): the earlier v4.1 expert map translated to the ten domains and revised against the clinical guidelines; WP1's frozen map replaces it |
 | `configs/wp0_sim_settings.json` | WP0's group sizes, visits and missingness for the synthetic runs (aggregates of the WP0 audit) |
-| `docs/run_on_windows.md` | Setting up and running the synthetic runs on a Windows PC |
+| `docs/run_on_windows.md` | Setting up and running the engine gate, and the PPMI analysis, on a Windows PC |
 | `scripts/smoke_test.py`, `run_engine_gate.py`, `run_qualification.py` | Synthetic runs: the whole chain, the engine gate, the WP3 qualification |
 | `scripts/build_ppmi_tables.py`, `run_wp0_audit.py`, `build_analysis_panel.py`, `run_hp_real.py` | Real-data runs (WP0, WP4): they refuse to start without the investigator's written approval (`--approval`), and keep participant-level tables in `data/` |
 | `scripts/run_power_check.py` | WP0's power gate, on synthetic data at WP0's counts |

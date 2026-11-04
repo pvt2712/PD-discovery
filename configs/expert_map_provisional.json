@@ -1,0 +1,51 @@
+{
+  "status": "PROVISIONAL, investigator-led (D25), written 4 November 2026 for the exploratory first look at H-P on PPMI, on the investigator's instruction. Not the WP1 frozen map: the panel's consensus map (configs/expert_map.json) replaces it.",
+  "format": "links are [from, to] pairs of domain names, read as: 'from' this year directly changes 'to' next year. Every domain also affects itself (own rates, always in the support). H-P's support is these links plus the lagged links Step 1 finds in the data.",
+  "method": "Base: the earlier expert map v41_progression (escalation-discovery/docs/expert_dags.yaml), graded against NICE NG71, AAN 2021 and the MDS evidence-based reviews. Its links between symptom domains graded STRONG or MODERATE were translated to this study's ten domains. Its motor_na node (MDS-UPDRS III without the axial items) maps to tremor and to bradykinesia-rigidity, adl to daily function, se to independence, cog to cognition, dep to mood, aut to autonomic, ess to daytime sleepiness and rbd to RBD symptoms. The questionnaire's rule of direct effects only was then applied, and links resting on the MDS diagnostic criteria or on prospective cohorts of the clinical-subtype literature were added (questionnaire candidates).",
+  "links": [
+    ["tremor", "function"],
+    ["brady_rigidity", "function"],
+    ["axial", "function"],
+    ["axial", "independence"],
+    ["function", "independence"],
+    ["cognition", "independence"],
+    ["mood", "function"],
+    ["mood", "independence"],
+    ["autonomic", "function"],
+    ["function", "mood"],
+    ["cognition", "function"],
+    ["rbd", "cognition"],
+    ["autonomic", "cognition"],
+    ["axial", "cognition"]
+  ],
+  "provenance": [
+    {"link": ["tremor", "function"], "source": "v4.1 motor_na -> adl (STRONG; PMID 18361474, 24711047, 29662921); questionnaire #1", "note": "motor_na includes the tremor items; the function domain leaves out MDS-UPDRS 2.10 (tremor), so there is no part-whole overlap"},
+    {"link": ["brady_rigidity", "function"], "source": "v4.1 motor_na -> adl (STRONG; as above); questionnaire #2"},
+    {"link": ["axial", "function"], "source": "v4.1 axial -> adl (STRONG; PMID 18361474 Shulman, 18307261 Hely); questionnaire #3"},
+    {"link": ["axial", "independence"], "source": "v4.1 axial -> se (STRONG; PMID 18361474, 10968298 Aarsland); questionnaire #5"},
+    {"link": ["function", "independence"], "source": "v4.1 adl -> se (STRONG; PMID 18361474, 15086662); questionnaire #4"},
+    {"link": ["cognition", "independence"], "source": "v4.1 cog -> se (STRONG; PMID 23172765, 20310053); questionnaire #10"},
+    {"link": ["mood", "function"], "source": "v4.1 dep -> adl, lagged (STRONG; PMID 10945804 Schrag 2000, 15086662 Weintraub 2004); questionnaire #11"},
+    {"link": ["mood", "independence"], "source": "v4.1 dep -> se, lagged (STRONG; PMID 15086662, 21264941); questionnaire #12"},
+    {"link": ["autonomic", "function"], "source": "v4.1 aut -> adl, lagged (STRONG; PMID 29278286 Merola 2018)", "note": "not among the questionnaire's candidates; the panel can add or remove it"},
+    {"link": ["function", "mood"], "source": "v4.1 adl -> dep, lagged (MODERATE; PMID 10945804); questionnaire #23"},
+    {"link": ["cognition", "function"], "source": "added: the MDS criteria separate mild cognitive impairment (Litvan 2012) from dementia (Emre 2007) by whether cognitive deficits impair daily life; questionnaire #9"},
+    {"link": ["rbd", "cognition"], "source": "added: RBD predicts dementia in prospective PD cohorts (Postuma 2012; Anang 2014) and defines the diffuse-malignant subtype with faster cognitive decline (Fereshtehnejad 2015); v4.1 linked them only through its latent non-motor trait; questionnaire #18"},
+    {"link": ["autonomic", "cognition"], "source": "added: orthostatic hypotension predicts dementia (Anang 2014) and belongs to the diffuse-malignant subtype (Fereshtehnejad 2015); questionnaire #22"},
+    {"link": ["axial", "cognition"], "source": "added: postural instability and gait difficulty precede faster cognitive decline and dementia (Burn 2006; Alves 2006); questionnaire #16", "note": "may reflect a shared cholinergic deficit rather than a direct effect (questionnaire E3)"}
+  ],
+  "not_translated_from_v41": [
+    "motor_na -> se (STRONG): under the direct-effect rule, motor signs reach independence through daily function",
+    "adl -> ess (WEAK): too weak for the map",
+    "anx_state -> adl, anx_trait0 -> icd_core: anxiety and impulse control are not domains of this study",
+    "the latent non-motor trait (-> rbd, aut, dep, ess, cog, motor_na): a common cause, not a direct link; the engine's per-patient load already allows shared severity across domains",
+    "links of hallucinations, motor complications and orthostatic hypotension: these domains are not in H-P's ten (D26)",
+    "treatment links (levodopa, agonists, MAO-B inhibitors, amantadine): treatment enters through the engine's treatment term, not as a domain"
+  ],
+  "left_to_the_panel": [
+    "questionnaire #6 bradykinesia-rigidity -> axial: axial signs progress largely through non-dopaminergic pathways; a direct effect is uncertain",
+    "#13 autonomic -> independence and #15 daytime sleepiness -> daily function: plausible, without direct evidence beyond the links kept",
+    "#20 cognition -> mood and #21 mood -> cognition: associations whose direction is uncertain",
+    "#7, #8, #14, #17, #19 and #24-#31: domains outside H-P's ten, or treatment"
+  ]
+}

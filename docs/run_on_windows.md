@@ -1,6 +1,6 @@
-# Running the engine gate on a Windows PC
+# Running the analyses on a Windows PC
 
-> Protocol draft v0.5, WP2. Written 4 November 2026. The engine gate uses synthetic data only. The PC needs no PPMI files, and nothing from `data/` should be copied to it. The same setup runs the other synthetic scripts later (the power check, the WP3 qualification).
+> Protocol draft v0.5. Written 4 November 2026. Sections 1–6 cover the engine gate (WP2), which uses synthetic data only; the same setup runs the other synthetic scripts later (the power check, the WP3 qualification). Section 7 adds the PPMI analysis. It needs two participant-level files copied from the Mac, and nothing else from `data/`.
 
 ## 1. Set up once (about 15 minutes)
 
@@ -80,3 +80,54 @@ Don't update the code while a gate run is going.
 - **pip can't find torch.** Check that Python is 3.13, 64-bit: `py -3.13 -c "import sys; print(sys.version)"` should show "64 bit".
 - **"holds a gate run with other settings".** The partial file belongs to a different command. Move it out of `results\engine_gate\` to start afresh.
 - **Anything else.** The log records the error. Copy its last lines to Claude.
+
+## 7. The PPMI analysis: H-P on the real data
+
+> **Participant-level data.** PPMI's data use agreement is with you. Check that it allows a second computer of yours, and keep the copy small and secure, as below. Nothing in this section sends data anywhere. Never paste rows of the data into an AI tool.
+
+**What to copy, once.** H-P needs only the analysis panel: two files from the Mac's `phenotype-discovery/data/derived/` folder.
+- `panel_tdpigd.npz` (about 70 KB): the TD and PIGD participants' domain scores by visit.
+- `panel_spec.json` (about 1 KB): the domains, the treated domains and the measurement-error variances.
+
+In the PC's copy of the repository, create the folder and put both files there:
+
+```powershell
+cd $HOME\Documents\phenotype-discovery
+New-Item -ItemType Directory -Force data\derived
+```
+
+- **How to move them.** Use an encrypted USB stick or another route you control. Don't use email, GitHub or a cloud drive.
+- **Git.** `data\` is git-ignored, so git never uploads these files. Never add them with `git add -f`.
+- **Security.** Keep the PC's Windows account password-protected and its disk encrypted (Settings → Privacy & security → Device encryption, or BitLocker).
+- **Cleanup.** Delete the two files when the analysis is finished.
+
+**First, update the code** (the provisional map and the PPMI options are newer than the first clone):
+
+```powershell
+git pull
+```
+
+**The first look** takes about an hour. The Mac ran it on 4 November, so this is only needed for a repeat:
+
+```powershell
+$env:PYTHONUTF8 = "1"
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --first-look --approval "Investigator, 4 November 2026: exploratory run before WP1-WP3"
+```
+
+**The full H-P run, with its bootstrap,** gives H-P's own p-value, the speed intervals and the localisation:
+
+```powershell
+$env:PYTHONUTF8 = "1"
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --approval "Investigator, 4 November 2026: exploratory run before WP1-WP3"
+```
+
+- **Time.**
+  - The observed fits take about an hour, then each bootstrap replicate about 30–40 minutes.
+  - The bootstrap stops once 20 replicates reach the observed statistic. If H-P is far from rejecting, that takes about 40 replicates, roughly a day.
+  - If H-P rejects, it runs to the cap: 199 replicates, about 5 days, which gives p-values down to 0.005. Without `--n-max` the cap is the protocol's 999, about 3 weeks.
+  - The speed bootstrap then adds about 2–3 days for 100 samples.
+- **If it stops,** run the same command again. Every replicate and speed sample is kept in `results\wp4\hp_tdpigd_checkpoint.json`.
+- **Progress** is printed and appended to `results\wp4\hp_tdpigd.log`.
+- **One job at a time.** Running it alongside the engine gate slows both, because the engine is limited by memory speed. If the PC has many cores, `--threads` can split them between the two runs.
+- **Outputs** are aggregates only: `results\wp4\hp_first_look.json` or `hp_tdpigd.json`, with their logs. Copy them back to the Mac's `results/wp4/` folder.
+- **Reading the result.** It is exploratory: the map is provisional, and WP1–WP3 come later. The report says so in its first line.

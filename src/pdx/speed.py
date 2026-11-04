@@ -75,28 +75,35 @@ def _flat(e: dict, free_fit: Fit) -> np.ndarray:
 
 def bootstrap_speed(panel: Panel, spec: ModelSpec, null_fit: Fit, free_fit: Fit, B: int = 200,
                     rng: np.random.Generator | None = None, fit_kw: dict | None = None,
-                    level: float = 0.95, support_fn=None) -> dict:
+                    level: float = 0.95, support_fn=None, done: dict | None = None, on_sample=None) -> dict:
     """Participant bootstrap of Sp-1 to Sp-3. support_fn, if given, re-selects the support in
-    every sample, as for the observed fits."""
+    every sample, as for the observed fits. `done` holds the samples already fitted (from a
+    checkpoint, with the same rng); on_sample(done) is called after each new one."""
     rng = rng or np.random.default_rng()
     fit_kw = fit_kw or {}
     est = speed_estimates(null_fit, free_fit, panel)
     theta = _flat(est, free_fit)
     d_hat = (free_fit.params["A"][1] - free_fit.params["A"][0]).ravel()
-    rows, diffs, failures = [], [], 0
+    done = {"rows": [], "diffs": [], "failures": 0, **(done or {})}
+    rows, diffs = done["rows"], done["diffs"]
     groups = [np.where(panel.group == g)[0] for g in range(panel.n_groups)]
-    for _ in range(B):
+    for b in range(B):
         idx = np.concatenate([rng.choice(gi, size=len(gi)) for gi in groups])
+        if b < len(rows) + done["failures"]:
+            continue                       # fitted before a restart; drawing again keeps the stream in step
         bp = panel.subset(idx)
         try:
             sb = spec if support_fn is None else spec.with_support(support_fn(bp))
             warm = null_fit.x if np.array_equal(sb.support, spec.support) else None
             f0, f1 = fit_pair(bp, sb, x0_null=warm, **fit_kw)
             e = speed_estimates(f0, f1, bp)
-            rows.append(_flat(e, f1))
-            diffs.append((f1.params["A"][1] - f1.params["A"][0]).ravel())
+            rows.append(_flat(e, f1).tolist())
+            diffs.append((f1.params["A"][1] - f1.params["A"][0]).ravel().tolist())
         except Exception:
-            failures += 1
+            done["failures"] += 1
+        if on_sample:
+            on_sample(done)
+    failures = done["failures"]
     R, Dm = np.array(rows), np.array(diffs)
     a = (1 - level) / 2
     lo = 2 * theta - np.nanquantile(R, 1 - a, axis=0)

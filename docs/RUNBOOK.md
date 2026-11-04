@@ -180,13 +180,28 @@ caffeinate -i nohup $PY scripts/run_hp_real.py --expert configs/expert_map.json 
 
 **The H-P run:**
 - **Steps.** It runs H-P with its sequential bootstrap (support re-selected in every replicate), then the speed estimates with 200 participant-bootstrap samples, then the anchor-free per-link and per-domain tests with the link classes.
-- **Checkpointing.** The bootstrap saves `results/wp4/hp_tdpigd_checkpoint.json` after every replicate. If it stops, run the same command again: it resumes when the observed statistic is unchanged.
+- **Checkpointing.** H-P's bootstrap and the speed bootstrap save `results/wp4/hp_tdpigd_checkpoint.json` after every replicate or sample. If the run stops, run the same command again: it resumes when the observed statistic is unchanged.
+- **Progress** is printed and appended to `results/wp4/hp_tdpigd.log`.
+- **Shorter runs.** `--n-max` caps H-P's bootstrap, for example at 199, which gives p-values down to 0.005. `--speed-bootstrap` sets the number of speed samples. The report records both.
 - **Output.** `results/wp4/hp_tdpigd.json`, aggregates only.
 - **Duration.** At 10 domains, the replicates run one at a time, at roughly 30–40 minutes each.
   - **No clear rejection: a day or two.** H-P stops early once 20 replicates are at least as large as the observed statistic.
   - **A rejection: 3–4 weeks.** It runs all 999 replicates.
 
 Step 1's reported map, the RBD axis and the robustness and sensitivity analyses (§7.10–§7.14) are run with the same modules, as set out in the analysis plan registered at WP2.
+
+**The exploratory first look (4 November 2026).** On the investigator's instruction, H-P was run before WP1–WP3. It used the provisional map in `configs/expert_map_provisional.json`, which was built from the earlier v4.1 expert map and the clinical guidelines; the file gives the reasons for each link. The panel had the default domains and OFF-state motor examinations only.
+
+```
+$PY scripts/run_hp_real.py --expert configs/expert_map_provisional.json --first-look --approval "$AP"
+```
+
+`--first-look` stops after the observed fits, about an hour. It reports:
+- H-P's statistic with a chi-square p-value instead of the bootstrap's;
+- the speed estimates, with a model-based interval for Sp-1;
+- the per-link and per-domain localisation.
+
+The output is `results/wp4/hp_first_look.json`, labelled exploratory. Any result obtained this way is exploratory: the confirmatory analysis would need the frozen map, a passed H-M1 and registration first. To run the PPMI analysis on a Windows PC, see `docs/run_on_windows.md`, §7.
 
 ## 7. When something goes wrong
 
