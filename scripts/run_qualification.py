@@ -39,7 +39,7 @@ def main():
             tasks += Q.make_tasks(sc, a.datasets, a.n, a.family, d=a.d, step1=not a.no_step1,
                                   fit_kw={"maxiter": a.maxiter}, sim_kw=json.loads(a.sim_kw))
         Q.run_tasks(tasks, ds, a.jobs)
-    rows = [json.loads(p.read_text()) for p in sorted(ds.glob("*.json"))]
+    rows = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(ds.glob("*.json"))]
     null_rows = [r for r in rows if r["scenario"] in Q.NULL_A]
     power_rows = [r for r in rows if r["scenario"] not in Q.NULL_A]
     cal = Q.calibration_summary(null_rows)

@@ -11,16 +11,21 @@ The complete engine passes if:
 5. results agree across 12, 20 and 30 quadrature nodes;
 6. a whole real-size bootstrap replicate, with support selection and every refit, is timed.
 Every check returns plain numbers; run_gate collects them with pass flags for the JSON report.
+At the real size the gate runs for days, so it saves every finished section, dispersed-start fit,
+recovery dataset and profile to a checkpoint; a restarted run skips them. Each section has its own
+seed, so a resumed run gives the same results as an uninterrupted one.
 """
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import torch
 
-from .engine.fit import Fit, covariance_checked, fit_model, fit_pair, hessian, param_names, start_values
+from .engine.fit import Fit, covariance_checked, fit_model, fit_pair, hessian, null_to, param_names, start_values
 from .engine.likelihood import loglik, prepare, value_and_grad
 from .engine.model import Layout, ModelSpec
 from .engine.reference import reference_loglik
@@ -69,17 +74,32 @@ def check_quadrature(fit: Fit, panel, nodes=(12, 20, 30)) -> dict:
     return {"loglik": out, "spread": spread, "pass": spread < 0.01}
 
 
+def check_quadrature_lr(f0: Fit, panel, fit_kw: dict | None = None, nodes=(12, 20, 30)) -> dict:
+    """The speed-only fit's log-likelihood at each node count (pass: spread below 0.01), and H-P's
+    statistic at each, from a free fit started at the speed-only one: errors that are common to
+    both models cancel in the statistic, which is the result that has to agree (§16)."""
+    f1 = fit_model(panel, f0.spec, "free", x0=null_to(f0.x, f0.spec, "free"), **(fit_kw or {}))
+    q0, q1 = check_quadrature(f0, panel, nodes), check_quadrature(f1, panel, nodes)
+    lr = {K: 2 * (q1["loglik"][K] - q0["loglik"][K]) for K in q0["loglik"]}
+    return {**q0, "free_loglik": q1["loglik"], "free_spread": q1["spread"], "lr": lr,
+            "lr_spread": max(lr.values()) - min(lr.values())}
+
+
 def check_dispersed_starts(panel, spec: ModelSpec, rng, n_starts: int = 5, scale: float = 0.3,
-                           fit_kw: dict | None = None) -> dict:
-    """Both models from their default start and from dispersed starts around it."""
+                           fit_kw: dict | None = None, done: dict | None = None, on_fit=None) -> dict:
+    """Both models from their default start and from dispersed starts around it. `done` holds the
+    log-likelihoods already found (from a checkpoint); on_fit(done) is called after each new one."""
     prep = prepare(panel, spec.meas_var, spec.n_groups)
+    done = {k: list(v) for k, v in (done or {}).items()}
     out = {}
     for kind in ("null", "free"):
         x_def = start_values(panel, spec, kind)
-        lls = [fit_model(panel, spec, kind, prep=prep, **(fit_kw or {})).loglik]
-        for _ in range(n_starts):
-            x0 = x_def + scale * rng.normal(size=len(x_def))
+        starts = [None] + [x_def + scale * rng.normal(size=len(x_def)) for _ in range(n_starts)]
+        lls = done.setdefault(kind, [])
+        for x0 in starts[len(lls):]:
             lls.append(fit_model(panel, spec, kind, x0=x0, prep=prep, **(fit_kw or {})).loglik)
+            if on_fit:
+                on_fit(done)
         out[kind] = {"logliks": lls, "spread": max(lls) - min(lls)}
     out["pass"] = all(out[k]["spread"] < 0.1 for k in ("null", "free"))
     return out
@@ -130,18 +150,20 @@ def identification(fit: Fit, panel, H: np.ndarray | None = None, boundary: float
 
 
 def recovery(scenario: str, n: int, n_datasets: int, seed: int = 0, d: int = 4, fit_kw: dict | None = None,
-             with_intervals: bool = True) -> dict:
+             with_intervals: bool = True, sim_kw: dict | None = None, rows: list | None = None,
+             on_row=None) -> dict:
     """Recovery of known parameters; LR >= 0 in every dataset.
 
     Under a shared mechanism (S1) the speed-only fit is compared with the truth: the speed ratio,
     the speed spreads and the reference drift, with the coverage of model-based 95% intervals.
     Under a changed link (S2) the free fit is compared with the truth: the reference drift with
-    TD's, and the other phenotype's drift with the speed ratio times PIGD's.
+    TD's, and the other phenotype's drift with the speed ratio times PIGD's. `rows` are datasets
+    already done (from a checkpoint); on_row(rows) is called after each new one.
     """
-    rows = []
-    for r in range(n_datasets):
+    rows = list(rows or [])
+    for r in range(len(rows), n_datasets):
         rng = np.random.default_rng(seed + r)
-        panel, info = scenarios.generate(scenario, n, rng, d=d)
+        panel, info = scenarios.generate(scenario, n, rng, d=d, **(sim_kw or {}))
         spec = spec_for(panel, info)
         t = info["truth"]
         f0, f1 = fit_pair(panel, spec, **(fit_kw or {}))
@@ -163,7 +185,9 @@ def recovery(scenario: str, n: int, n_datasets: int, seed: int = 0, d: int = 4, 
             row["error_A"] = (f1.params["A"][0][spec.support] - t.A[spec.support]).tolist()
             row["error_A_other"] = (f1.params["A"][1][spec.support]
                                     - t.speed_ratio * t.A_pigd[spec.support]).tolist()
-        rows.append(row)
+        rows.append(plain(row))
+        if on_row:
+            on_row(rows)
     out = {"scenario": scenario, "datasets": n_datasets, "n": n,
            "mean_abs_error_A": float(np.mean(np.abs([r["error_A"] for r in rows]))),
            "min_lr": float(min(r["lr"] for r in rows)), "non_converged": int(sum(not r["converged"] for r in rows)),
@@ -180,10 +204,11 @@ def recovery(scenario: str, n: int, n_datasets: int, seed: int = 0, d: int = 4, 
     return out
 
 
-def time_replicate(n: int, d: int, seed: int = 0, fit_kw: dict | None = None, step1: bool = True) -> dict:
+def time_replicate(n: int, d: int, seed: int = 0, fit_kw: dict | None = None, step1: bool = True,
+                   sim_kw: dict | None = None) -> dict:
     """Seconds for the observed fits and one whole bootstrap replicate (support selection and refits)."""
     rng = np.random.default_rng(seed)
-    panel, info = scenarios.generate("S1", n, rng, d=d)
+    panel, info = scenarios.generate("S1", n, rng, d=d, **(sim_kw or {}))
     spec = spec_for(panel, info)
     support_fn = make_support_fn(info["support"], Step1Config()) if step1 else None
     t0 = time.time()
@@ -197,34 +222,130 @@ def time_replicate(n: int, d: int, seed: int = 0, fit_kw: dict | None = None, st
             "replicate_s": t3 - t2, "null_evaluations": f0.n_eval, "free_evaluations": f1.n_eval}
 
 
+def plain(obj):
+    """JSON-ready values (numpy arrays and scalars as lists and numbers), so results can be checkpointed."""
+    def conv(o):
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        if isinstance(o, np.generic):
+            return o.item()
+        raise TypeError(type(o).__name__)
+    return json.loads(json.dumps(obj, default=conv))
+
+
+class Checkpoint:
+    """The gate's finished work, saved after each piece; a restart with other settings is refused.
+    log(message), if given, reports each section as it finishes or is skipped."""
+
+    def __init__(self, path: Path | None, settings: dict, log=None):
+        self.path = Path(path) if path else None
+        self.log = log or (lambda message: None)
+        self.data = json.loads(self.path.read_text(encoding="utf-8")) if self.path and self.path.exists() else {}
+        if self.data.get("settings", plain(settings)) != plain(settings):
+            raise RuntimeError(f"{self.path} holds a gate run with other settings; move it away to start afresh")
+        self.data["settings"] = plain(settings)
+
+    def section(self, key: str, fn):
+        if key in self.data:
+            self.log(f"{key}: done earlier, skipped")
+        else:
+            t0 = time.time()
+            self.data[key] = plain(fn())
+            self.save()
+            self.log(f"{key}: done ({(time.time() - t0) / 60:.0f} min)")
+        return self.data[key]
+
+    def save(self) -> None:
+        if self.path:
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.data))
+            for attempt in range(20):            # Windows refuses to replace a file another program has open
+                try:
+                    tmp.replace(self.path)
+                    return
+                except PermissionError:
+                    if attempt == 19:
+                        raise
+                    time.sleep(0.5)
+
+
 def run_gate(n: int = 1400, d: int = 4, n_datasets: int = 20, seed: int = 2026, quick: bool = False,
-             fit_kw: dict | None = None) -> dict:
-    """All checks; quick=True shrinks sizes so the harness itself can be tested in minutes."""
-    rng = np.random.default_rng(seed)
+             fit_kw: dict | None = None, sim_kw: dict | None = None, checkpoint: Path | None = None,
+             log=None) -> dict:
+    """All checks; quick=True shrinks sizes so the harness itself can be tested in minutes.
+
+    sim_kw shapes every real-size dataset (for example WP0's group sizes, visits and missingness;
+    target_counts then fix the size, and n is the pool they are drawn from). With a checkpoint path,
+    finished work is saved as it goes and skipped when the same run is restarted. log(message), if
+    given, reports progress.
+    """
+    log = log or (lambda message: None)
+    sim_kw = dict(sim_kw or {})
     if quick:
-        n, n_datasets = min(n, 200), min(n_datasets, 2)
-    small, info = scenarios.generate("S1", 40, rng, d=d)
+        n_datasets = min(n_datasets, 2)
+        if sim_kw.get("target_counts"):
+            tc = sim_kw["target_counts"]
+            sim_kw["target_counts"] = tuple(max(2, round(200 * c / sum(tc))) for c in tc)
+            n = 5 * sum(sim_kw["target_counts"])
+        else:
+            n = min(n, 200)
+    ck = Checkpoint(checkpoint, {"n": n, "d": d, "n_datasets": n_datasets, "seed": seed, "quick": quick,
+                                 "sim_kw": sim_kw, "fit_kw": fit_kw or {}}, log)
+    log(f"gate: {d} domains, {n_datasets} recovery datasets, {torch.get_num_threads()} threads")
+    rng = lambda k: np.random.default_rng([seed, k])                     # one stream per section
+    small, info = scenarios.generate("S1", 40, rng(0), d=d)
     spec_small = spec_for(small, info)
-    report = {"settings": {"n": n, "d": d, "n_datasets": n_datasets, "seed": seed, "quick": quick},
-              "reference": check_reference(small, spec_small, rng),
-              "gradient": check_gradient(small, spec_small, rng)}
-    panel, info = scenarios.generate("S1", n, rng, d=d)
+    report = {"settings": ck.data["settings"],
+              "reference": ck.section("reference", lambda: check_reference(small, spec_small, rng(1))),
+              "gradient": ck.section("gradient", lambda: check_gradient(small, spec_small, rng(2)))}
+    panel, info = scenarios.generate("S1", n, rng(3), d=d, **sim_kw)
     spec = spec_for(panel, info)
-    f0 = fit_model(panel, spec, "null", **(fit_kw or {}))
-    report["quadrature"] = check_quadrature(f0, panel)
-    report["dispersed_starts"] = check_dispersed_starts(panel, spec, rng, n_starts=2 if quick else 5,
-                                                        fit_kw=fit_kw)
-    ident = identification(f0, panel)
-    se = ident.pop("se")
-    report["identification"] = ident
-    lay = f0.layout
+    report["participants"] = int(panel.n)
+    f0 = None
+    if not all(k in ck.data for k in ("quadrature", "identification", "profiles")):
+        x0 = np.array(ck.data["null_fit_x"]) if "null_fit_x" in ck.data else None   # a saved fit converges at once
+        t0 = time.time()
+        f0 = fit_model(panel, spec, "null", x0=x0, **(fit_kw or {}))
+        ck.data["null_fit_x"] = f0.x.tolist()
+        ck.save()
+        log(f"speed-only fit of the gate dataset ({panel.n} participants): done ({(time.time() - t0) / 60:.0f} min)")
+    report["quadrature"] = ck.section("quadrature", lambda: check_quadrature_lr(f0, panel, fit_kw))
+    n_starts = 2 if quick else 5
+
+    def keep_starts(done):
+        ck.data["dispersed_starts_done"] = done
+        ck.save()
+        log(f"dispersed_starts: fit {sum(map(len, done.values()))} of {2 * (n_starts + 1)} done")
+    report["dispersed_starts"] = ck.section("dispersed_starts", lambda: check_dispersed_starts(
+        panel, spec, rng(4), n_starts=n_starts, fit_kw=fit_kw, done=ck.data.get("dispersed_starts_done"),
+        on_fit=keep_starts))
+    if "identification" not in ck.data:
+        ident = identification(f0, panel)
+        ck.data["identification_se"] = plain(ident.pop("se"))
+        ck.section("identification", lambda: ident)
+    report["identification"] = ck.data["identification"]
+    se = np.array(ck.data["identification_se"])
+    lay = Layout(spec, "null")
     names = [("gamma", 0), ("log_sigma", 1), ("b", spec.d + 1), ("L", 0), ("log_tau", 0), ("lam", 0)]
     names += [("kappa", 0)] if spec.n_treat else []
-    report["profiles"] = [profile(f0, panel, nm, ix, se[lay.slices[nm][0].start + ix], n_grid=5 if quick else 9,
-                                  fit_kw=fit_kw) for nm, ix in names if lay.has(nm)]
-    report["recovery_null"] = recovery("S1", n, n_datasets, seed + 100, d, fit_kw, with_intervals=not quick)
-    report["recovery_changed_link"] = recovery("S2", n, n_datasets, seed + 200, d, fit_kw, with_intervals=False)
-    report["timing"] = time_replicate(n, d, seed + 300, fit_kw)
+    done = ck.data.setdefault("profiles_done", [])
+    for nm, ix in names:
+        if lay.has(nm) and f"{nm}[{ix}]" not in [p["parameter"] for p in done]:
+            t0 = time.time()
+            done.append(plain(profile(f0, panel, nm, ix, se[lay.slices[nm][0].start + ix],
+                                      n_grid=5 if quick else 9, fit_kw=fit_kw)))
+            ck.save()
+            log(f"profile of {nm}[{ix}]: done ({(time.time() - t0) / 60:.0f} min)")
+    report["profiles"] = ck.section("profiles", lambda: done)
+    for key, scenario, offset, intervals in (("recovery_null", "S1", 100, not quick),
+                                             ("recovery_changed_link", "S2", 200, False)):
+        def keep_rows(rows, key=key):
+            ck.data[key + "_rows"] = rows
+            ck.save()
+            log(f"{key}: dataset {len(rows)} of {n_datasets} done")
+        report[key] = ck.section(key, lambda: recovery(scenario, n, n_datasets, seed + offset, d, fit_kw, intervals,
+                                                       sim_kw, ck.data.get(key + "_rows"), keep_rows))
+    report["timing"] = ck.section("timing", lambda: time_replicate(n, d, seed + 300, fit_kw, sim_kw=sim_kw))
     checks = [report["reference"]["pass"], report["gradient"]["pass"], report["quadrature"]["pass"],
               report["dispersed_starts"]["pass"], report["identification"]["well_conditioned_without_them"],
               all(p["identified"] for p in report["profiles"]),

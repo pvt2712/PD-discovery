@@ -1,0 +1,35 @@
+{
+ "note": "WP0's simulation settings: the TD and PIGD counts with at least one transition after the landmark, participants by number of visits (small cells suppressed, entered as 2) and the missing share of each domain, in the 10-domain simulator's order. Aggregates of the WP0 audit of 3 November 2026 (results/wp0/wp0_audit.json); refresh with scripts/run_power_check.py --write-settings.",
+ "target_counts": [
+  652,
+  164
+ ],
+ "visit_probs": {
+  "2": 206,
+  "3": 224,
+  "4": 152,
+  "5": 90,
+  "6": 23,
+  "7": 35,
+  "8": 24,
+  "9": 2,
+  "10": 28,
+  "11": 33,
+  "12": 55,
+  "13": 38,
+  "14": 22,
+  "15": 2
+ },
+ "p_missing": [
+  0.2349,
+  0.2349,
+  0.2403,
+  0.0058,
+  0.0138,
+  0.066,
+  0.0488,
+  0.0475,
+  0.0123,
+  0.0461
+ ]
+}

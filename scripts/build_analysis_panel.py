@@ -37,7 +37,7 @@ def main():
     part = pd.read_parquet(d / "participants.parquet")
     grid = pd.read_parquet(d / "grid.parquet")
     panel, ns, info = ppmi.analysis_panel(part, grid, a.domains, a.motor_on)
-    meas = json.loads(open(a.measurement).read())
+    meas = json.loads(open(a.measurement, encoding="utf-8").read())
     mv = [float(meas["error_variance"][dn]) for dn in a.domains]
     spec = {**info, "meas_var": mv, "measurement_source": meas.get("source"), "approval": a.approval}
     save_panel(panel, d / "panel_tdpigd.npz")

@@ -1,10 +1,12 @@
 """WP0's gate (protocol v0.5, §3): power of H-P at alpha = 5% against one deviation of 2 epsilon,
 with the synthetic engine re-run at WP0's counts, follow-up and missingness. Synthetic data only;
-it reads WP0's aggregate tables (results/wp0/wp0_audit.json), never participant-level data.
+it reads WP0's simulation settings (configs/wp0_sim_settings.json, derived from the aggregate tables
+in results/wp0/wp0_audit.json), never participant-level data.
 
     python scripts/run_power_check.py --datasets 8 --jobs 4        # pilot (non-centrality estimate)
     python scripts/run_power_check.py --datasets 20 --jobs 4       # optional direct Monte Carlo check
     python scripts/run_power_check.py --summarise
+    python scripts/run_power_check.py --write-settings             # refresh the settings file after a WP0 run
 
 Power is reported two ways: the share of datasets whose statistic exceeds its chi-square critical
 value, and the noncentral chi-square power at the estimated non-centrality (the mean of LR - df,
@@ -27,7 +29,7 @@ OUT = _common.RESULTS / "wp0" / "power"
 
 def wp0_settings(path) -> dict:
     """Simulation settings from WP0's aggregate tables."""
-    r = json.loads(path.read_text())
+    r = json.loads(path.read_text(encoding="utf-8"))
     reached = {k: v for k, v in r["landmark"]["cells"].items()}
     land = {ph: reached[ph]["reached year 1"] for ph in ("TD", "PIGD")}
     vpp = {}
@@ -41,6 +43,27 @@ def wp0_settings(path) -> dict:
              "hallucinations", "sleepiness"]                     # the 10-domain simulator's order
     return {"target_counts": counts, "visit_probs": {str(k): v for k, v in known.items()},
             "p_missing": [round(float(miss[d]), 4) for d in names]}
+
+
+SETTINGS = _common.ROOT / "configs" / "wp0_sim_settings.json"
+
+
+def wp0_sim_settings() -> dict:
+    """WP0's simulation settings from configs/wp0_sim_settings.json, which git carries to other
+    computers, or else straight from WP0's aggregate tables."""
+    if not SETTINGS.exists():
+        return wp0_settings(_common.RESULTS / "wp0" / "wp0_audit.json")
+    s = json.loads(SETTINGS.read_text(encoding="utf-8"))
+    return {"target_counts": tuple(s["target_counts"]), "visit_probs": s["visit_probs"], "p_missing": s["p_missing"]}
+
+
+def write_sim_settings() -> None:
+    s = wp0_settings(_common.RESULTS / "wp0" / "wp0_audit.json")
+    note = ("WP0's simulation settings: the TD and PIGD counts with at least one transition after the landmark, "
+            "participants by number of visits (small cells suppressed, entered as 2) and the missing share of each "
+            "domain, in the 10-domain simulator's order. Aggregates of the WP0 audit of 3 November 2026 "
+            "(results/wp0/wp0_audit.json); refresh with scripts/run_power_check.py --write-settings.")
+    SETTINGS.write_text(json.dumps({"note": note, **s}, indent=1) + "\n", encoding="utf-8")
 
 
 def summarise(rows: list, alpha: float = 0.05) -> dict:
@@ -82,9 +105,14 @@ def main():
     ap.add_argument("--d", type=int, default=10)
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--summarise", action="store_true")
+    ap.add_argument("--write-settings", action="store_true", help="write configs/wp0_sim_settings.json from WP0")
     a = ap.parse_args()
+    if a.write_settings:
+        write_sim_settings()
+        print("wrote", SETTINGS)
+        return
     ds = OUT / "datasets"
-    settings = wp0_settings(_common.RESULTS / "wp0" / "wp0_audit.json")
+    settings = wp0_sim_settings()
     n_gen = 5 * sum(settings["target_counts"])
     sim_kw = {"target_counts": settings["target_counts"], "p_missing": settings["p_missing"][:a.d],
               "visit_probs": {int(k): v for k, v in settings["visit_probs"].items()}}
@@ -93,7 +121,7 @@ def main():
         if a.null:
             tasks += Q.make_tasks("S1", a.null, n_gen, "A", d=a.d, step1=True, sim_kw=sim_kw, replicate=True)
         Q.run_tasks(tasks, ds, a.jobs)
-    rows = [json.loads(p.read_text()) for p in sorted(ds.glob("*.json"))]
+    rows = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(ds.glob("*.json"))]
     summary = {"settings_from_wp0": settings, **summarise(rows)}
     (OUT / "summary.json").write_text(json.dumps(_common.to_json(summary), indent=1))
     print(json.dumps(_common.to_json({k: v for k, v in summary.items() if k != "settings_from_wp0"}), indent=1))

@@ -475,7 +475,7 @@ def anchored_tests(panel: Panel, spec: ModelSpec, free_fit: Fit, prep: Prepared 
 # ---------------------------------------------------------------- speed-adjusted joint discovery
 
 def _penalised_fit(lay: Layout, prep: Prepared, z0: np.ndarray, lam: float, w: np.ndarray,
-                   fixed_zero: np.ndarray | None = None, maxiter: int = 3000, chunk: int = 512,
+                   fixed_zero: np.ndarray | None = None, maxiter: int = 3000, chunk: int | None = None,
                    ftol: float = 1e-10, gtol: float = 1e-5):
     """Adaptive-lasso fit of the joint model with D = u - v (u, v >= 0)."""
     n = lay.size

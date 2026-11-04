@@ -17,15 +17,32 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
 import _common
 import numpy as np
 
-from pdx import config, hp, localise, speed
+from pdx import config, hp, localise, speed, wp1
 from pdx.data import load_panel
 from pdx.engine.likelihood import prepare
 from pdx.engine.model import ModelSpec
 from pdx.step1 import Step1Config, make_support_fn
+
+
+def expert_support(path: str, names: list) -> tuple[np.ndarray, list]:
+    """The support from the frozen map: its links between the panel's domains. A link naming any
+    other known domain (treatment, or a floor-bound domain left out of H-P, D26) is set aside and
+    reported; an unknown name stops the run."""
+    sup, aside = np.zeros((len(names), len(names)), bool), []
+    for frm, to in json.loads(open(path, encoding="utf-8").read())["links"]:
+        unknown = [x for x in (frm, to) if x not in wp1.DISPLAY]
+        if unknown:
+            sys.exit(f"Unknown domain in the expert map: {', '.join(unknown)}")
+        if frm in names and to in names:
+            sup[names.index(to), names.index(frm)] = True
+        else:
+            aside.append([frm, to])
+    return sup, aside
 
 
 def main():
@@ -45,11 +62,9 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     cfg = config.load()
     panel = load_panel(paths[0])
-    pspec = json.loads(paths[1].read_text())
+    pspec = json.loads(paths[1].read_text(encoding="utf-8"))
     names = pspec["domains"]
-    expert = np.zeros((panel.d, panel.d), bool)
-    for frm, to in json.loads(open(a.expert).read())["links"]:
-        expert[names.index(to), names.index(frm)] = True
+    expert, aside = expert_support(a.expert, names)
     tm = np.isin(names, pspec["treated_domains"])
     mv = np.array(pspec["meas_var"], float)
     spec = ModelSpec(d=panel.d, support=expert, p=panel.p, treat_mask=tm, meas_var=mv,
@@ -64,7 +79,7 @@ def main():
     ckpt = out / "hp_tdpigd_checkpoint.json"
     state = {"replicates": []}
     if ckpt.exists():
-        state = json.loads(ckpt.read_text())
+        state = json.loads(ckpt.read_text(encoding="utf-8"))
 
     def save(drawn, exceed, stat, ok):
         state["replicates"].append([stat if np.isfinite(stat) else None, ok])
@@ -84,7 +99,8 @@ def main():
     res = hp.run_hp(panel, spec, support_fn, cfg["hp"]["n_max"], cfg["hp"]["h"], rng, callback=save,
                     resume=resume, fits=fits)
     report = {"approval": a.approval, "counts": panel.aggregate_summary(), "hp": res.summary(),
-              "support": res.support.astype(int).tolist(), "bootstrap_lr": res.lr_star}
+              "support": res.support.astype(int).tolist(), "map_links_set_aside": aside,
+              "bootstrap_lr": res.lr_star}
     spec_s = spec.with_support(res.support)
     report["speed"] = speed.bootstrap_speed(panel, spec_s, res.null_fit, res.free_fit, cfg["speed"]["bootstrap"],
                                             rng, support_fn=support_fn)

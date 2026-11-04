@@ -28,13 +28,18 @@ Design stage.
   - Step 1, the separate-graph reference and four comparators;
   - the simulators, the qualification harness, the engine gate and the WP0 audit.
 
-  Two independent reviews were run, their findings fixed, and 41 unit tests pass. `docs/code_map.md` maps each protocol section to its code and its checks, and lists what is not yet in code.
+  Two independent reviews were run, their findings fixed, and 49 unit tests pass. `docs/code_map.md` maps each protocol section to its code and its checks, and lists what is not yet in code.
 - **Compute is the main open issue.** At ten domains and about 1,450 synthetic participants, one likelihood evaluation takes about 2.5 s on the M4.
   - The speed-only fit needed 223 evaluations (about 9 minutes when run alone).
   - The free fit needed 375 evaluations from the null start (about 16 minutes), and the free model's second start comes on top.
   - So a bootstrap replicate costs roughly half an hour, against the 1 minute per fit assumed in §8.8.
-  - In the WP0 power pilot (816 participants, 4 jobs at once), each fit pair took 2–5.4 hours (median 3.4), so this Mac completes about one fit pair an hour. At that rate, WP3's replicate numbers for family A would take about 5 months here.
+  - In the WP0 power pilot (816 participants, 4 jobs at once), each fit pair took 2–5.4 hours (median 3.4), so this Mac completed about one fit pair an hour.
+  - A timing test on 4 November found that the engine is limited by memory traffic. Smaller likelihood batches (32 participants in a single-threaded job, 128 otherwise; `scripts/bench_threads.py`) make it 1.7–2 times faster, with identical values. WP3's replicate numbers for family A would now take about 10–12 weeks here.
   - The compute plan (D14) has to be revised once the engine gate has timed the real size.
+- **The engine gate (WP2) started on 4 November 2026.**
+  - The Mac finished the reference, gradient and quadrature checks.
+  - At WP0's size, 12 quadrature nodes miss the gate's rule (`docs/RUNBOOK.md`, §4). H-P's statistic barely moves, but the number of nodes must be decided before the freeze.
+  - The rest of the gate moves to a Windows PC; `docs/run_on_windows.md` covers setup and running there.
 - **WP0, the feasibility audit, ran on 3 November 2026**, with the investigator's approval, on the PPMI download of 13 October 2026. `docs/wp0_feasibility_report.md` has the results, aggregate counts only:
   - 1,127 untreated sporadic participants: 804 TD, 209 PIGD, 114 indeterminate;
   - 986 seen at the year-1 landmark (177 PIGD), with 3,727 transitions;
@@ -71,7 +76,7 @@ $PY scripts/smoke_test.py --n 300      # the whole chain on one small synthetic 
 $PY scripts/run_engine_gate.py --quick # the engine-gate harness at small size
 ```
 
-Long runs (the real-size engine gate, the qualification) are started from the Terminal app, with at most 4 parallel jobs.
+Long runs (the real-size engine gate, the qualification) are started from the Terminal app, with at most 4 parallel jobs. On a Windows PC, set up and run as in `docs/run_on_windows.md`.
 
 ## Lineage
 
@@ -91,9 +96,15 @@ Nothing is reused. The stopped run serves as pilot evidence (PROTOCOL.md §1.5 a
 | `src/pdx/` | Analysis code for protocol v0.5 (see `docs/code_map.md`) |
 | `tests/` | Unit tests, run with `tests/run_tests.py` (pytest is not installed) |
 | `configs/protocol_v0.5.toml` | The pre-specified constants |
+| `configs/wp0_sim_settings.json` | WP0's group sizes, visits and missingness for the synthetic runs (aggregates of the WP0 audit) |
+| `docs/run_on_windows.md` | Setting up and running the synthetic runs on a Windows PC |
 | `scripts/smoke_test.py`, `run_engine_gate.py`, `run_qualification.py` | Synthetic runs: the whole chain, the engine gate, the WP3 qualification |
 | `scripts/build_ppmi_tables.py`, `run_wp0_audit.py`, `build_analysis_panel.py`, `run_hp_real.py` | Real-data runs (WP0, WP4): they refuse to start without the investigator's written approval (`--approval`), and keep participant-level tables in `data/` |
 | `scripts/run_power_check.py` | WP0's power gate, on synthetic data at WP0's counts |
+| `scripts/wp1_consensus.py` | WP1: compiles the panel's returned questionnaires into the round-2 table and the draft expert map (§6.4). Run with the system Python, which reads Word files; returned files stay in `data/wp1/` |
+| `docs/wp1_invitation_email.md` | Draft invitation to the expert panel, with the checks to make before sending |
+| `docs/wp3_simulator_fitting_plan.md` | How the simulators are to be fitted to PPMI's pooled population (§8.2), keeping the confirmatory analyses blind |
+| `scripts/bench_threads.py` | Timing test of batch size and job layout, for the compute plan (D14) |
 | `docs/RUNBOOK.md` | How to run every work package |
 | `scripts/md_to_docx.py` | Builds the Word versions |
 | `scripts/toy/` | Synthetic simulations behind the investigation report and the Step 2 note: speed versus pathway, speed varying within phenotypes (with the person-level test at larger cohort sizes), latent classes, named comparator families against the speed-adjusted Step 2 procedures (`toy_comparators*.py`), and tsLDiffPC/tsDCI re-implemented (`ts_ldiffpc.py`), validated against the paper (`toy_tsldiffpc_validation.py`) and run on our design (`toy_tsldiffpc.py`), and DYNOTEARS re-implemented (`dynotears.py`), validated against its paper (`toy_dynotears_validation.py`) and run on our design (`toy_dynotears.py`). Run from that folder with the ppmi-causal Python environment; no PPMI data |

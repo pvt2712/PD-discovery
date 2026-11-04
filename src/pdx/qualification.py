@@ -86,7 +86,7 @@ def _run_one(args):
     task, out_dir = args
     path = _path(out_dir, task)
     if path.exists():
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     try:
         res = dataset_task(task)
     except Exception as exc:                      # a failed dataset is logged, not dropped

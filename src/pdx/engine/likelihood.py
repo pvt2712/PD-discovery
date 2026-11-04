@@ -27,6 +27,8 @@ from .transitions import transitions_grouped
 
 LOG2PI = float(np.log(2 * np.pi))
 LOG_SPEED_BOUND = 15.0     # |log-speed| at a quadrature node; reached only far from any fitted value
+CHUNK = 128                # participants per batch in a process with several threads
+CHUNK_SINGLE = 32          # and in a single-threaded worker (one of several parallel jobs)
 
 
 @dataclass
@@ -90,8 +92,17 @@ def prepare(panel: Panel, meas_var: np.ndarray, n_groups: int | None = None) -> 
                     torch.as_tensor(panel.group, dtype=torch.long), t(mu1), t(S1), t(meas_var), N, T, Ti)
 
 
-def chunks(prep: Prepared, size: int) -> list:
-    """Participant index sets of at most `size`, grouped by number of visits."""
+def default_chunk() -> int:
+    """Participants per batch, by this process's threads: small batches stay in the processor's
+    cache. On the M4 at 10 domains (scripts/bench_threads.py, 4 November 2026), one 4-thread process
+    ran 1.7 times faster with 128 than with 512, and 4 single-threaded jobs about 1.9 times faster
+    with 32. The batch size changes only the order of summation."""
+    return CHUNK_SINGLE if torch.get_num_threads() == 1 else CHUNK
+
+
+def chunks(prep: Prepared, size: int | None = None) -> list:
+    """Participant index sets of at most `size` (default_chunk() if not given), grouped by number of visits."""
+    size = size or default_chunk()
     order = torch.argsort(prep.Ti, stable=True)
     return [order[a:a + size] for a in range(0, prep.N, size)]
 
@@ -183,7 +194,7 @@ def participant_loglik(x: torch.Tensor, lay: Layout, prep: Prepared, idx: torch.
     return torch.logsumexp(ll + logw[None, :], 1)
 
 
-def loglik(x: torch.Tensor, lay: Layout, prep: Prepared, chunk: int = 256) -> torch.Tensor:
+def loglik(x: torch.Tensor, lay: Layout, prep: Prepared, chunk: int | None = None) -> torch.Tensor:
     """Total log-likelihood (differentiable; holds the whole graph, so use for small data)."""
     tot = torch.zeros((), dtype=x.dtype)
     for idx in chunks(prep, chunk):
@@ -191,7 +202,7 @@ def loglik(x: torch.Tensor, lay: Layout, prep: Prepared, chunk: int = 256) -> to
     return tot
 
 
-def value_and_grad(xnp: np.ndarray, lay: Layout, prep: Prepared, chunk: int = 256,
+def value_and_grad(xnp: np.ndarray, lay: Layout, prep: Prepared, chunk: int | None = None,
                    penalty=None) -> tuple[float, np.ndarray]:
     """Negative log-likelihood and its gradient, chunk by chunk to bound memory.
 

@@ -147,7 +147,7 @@ def null_to(x_null: np.ndarray, spec: ModelSpec, kind: str) -> np.ndarray:
 
 def fit_model(panel: Panel, spec: ModelSpec, kind: str, x0: np.ndarray | None = None,
               extra_starts: list | None = None, prep: Prepared | None = None,
-              maxiter: int = 3000, chunk: int = 512, penalty=None, ftol: float = 1e-10,
+              maxiter: int = 3000, chunk: int | None = None, penalty=None, ftol: float = 1e-10,
               gtol: float = 1e-5, bounds=None, use_default_start: bool = True, maxcor: int = 50) -> Fit:
     """Fit one kind of model; the best of the starts by likelihood is kept.
 
@@ -197,7 +197,7 @@ def fit_pair(panel: Panel, spec: ModelSpec, prep: Prepared | None = None, x0_nul
 
 
 def hessian(fit: Fit, panel: Panel, prep: Prepared | None = None, h: float = 1e-5,
-            chunk: int = 256) -> np.ndarray:
+            chunk: int | None = None) -> np.ndarray:
     """Observed information (Hessian of minus the log-likelihood) by central differences of the
     exact gradient. Raises if the model cannot be evaluated next to the fit."""
     prep = prep or prepare(panel, fit.spec.meas_var, fit.spec.n_groups)

@@ -94,7 +94,8 @@ Known approximations:
 | Stresses | `scenarios.generate` kwargs, through `sim_kw` in the harness | Available: spurious link, missing true link, family B non-invariance, sample size, visits, missingness, dropout. Still to add: MNAR, noisy defining items, era effects, initial state–speed correlation, the identification limit. |
 | Warp-speed calibration, H-M1 with Bradley's 7.5%, power against the S1 critical value of the same configuration, Sp-1 bias | `qualification.py`, `scripts/run_qualification.py` | One JSON per dataset, named by a hash of the whole configuration and skipped on rerun; results pooled only within a configuration; at most 4 jobs |
 | Fidelity dashboard summaries | `fidelity.py` | Part of the §8.2 list |
-| Engine gate: reference agreement, gradients, quadrature nodes, dispersed starts for both models, Hessian conditioning, profiles over ±4 standard errors (speed, spread, load, noise, load spread, speed–load link, treatment), recovery under S1 (speed-only fit) and S2 (free fit), timing | `gate.py`, `scripts/run_engine_gate.py` | Quick mode for the harness; the real-size run is a WP2 task |
+| Engine gate: reference agreement, gradients, quadrature nodes, dispersed starts for both models, Hessian conditioning, profiles over ±4 standard errors (speed, spread, load, noise, load spread, speed–load link, treatment), recovery under S1 (speed-only fit) and S2 (free fit), timing | `gate.py`, `scripts/run_engine_gate.py` | Quick mode for the harness. `--wp0` uses WP0's group sizes, visits and missingness (`configs/wp0_sim_settings.json`). Finished sections, dispersed-start fits, recovery datasets and profiles are checkpointed, with one seed per section, so a restart resumes with identical results (`tests/test_gate.py`). Progress goes to `<name>.log`. The report records the commit and a hash of uncommitted changes. The real-size run is a WP2 task. |
+| Compute settings: participants per likelihood batch (`CHUNK`) and the layout of jobs and threads | `engine/likelihood.py::CHUNK`, `scripts/bench_threads.py` | Measured on 4 November 2026 (`results/bench/threads.json`). Batches of 128 ran 1.7 times faster than 512, with identical values; 4 single-threaded jobs beat every other layout. |
 
 ## Comparators (§8.4)
 
@@ -113,10 +114,11 @@ Known approximations:
 |---|---|---|
 | PPMI tables (§4, §5, §6.1): the PD cohort, enrolment and genetic status, visits with domain scores (item codes outside range set missing; screening values standing in for baseline), the OFF or untreated examination, LEDD, the annual grid's fixed visit order, Stebbins phenotypes, the provisional clinical subtype, the participant flow, the Part II endpoint | `ppmi.py` (`build`, `annual_grid`, `stebbins`, `clinical_subtype`, `flow_table`), `scripts/build_ppmi_tables.py` | `tests/test_ppmi.py` (a mock download with made-up participants); ran on PPMI on 3 November 2026 |
 | The H-P analysis panel: TD and PIGD seen at year 1, the pooled frozen normal scores, centred covariates, dose, exposure, examination state | `ppmi.py::analysis_panel`, `scripts/build_analysis_panel.py` | `test_analysis_panel_from_the_mock` |
-| WP0's power gate (synthetic, at WP0's counts, visits and missingness) | `scripts/run_power_check.py`; `family_a.simulate(visit_probs, target_counts, p_missing per domain)` | — |
+| WP0's power gate (synthetic, at WP0's counts, visits and missingness) | `scripts/run_power_check.py`; `family_a.simulate(visit_probs, target_counts, p_missing per domain)`; the settings in `configs/wp0_sim_settings.json` (`--write-settings` refreshes them from the audit) | — |
 | Orientation and the frozen pooled normal-scores transform (mid-ranks) | `transforms.py` | `tests/test_transforms.py` |
 | WP0 audit: aggregate counts only, with disclosure control | `wp0.py`, `scripts/run_wp0_audit.py` | `tests/test_wp0.py`. Cross-tables are published with their own margins and complementary suppression, shares need denominators of at least `min_cell`, site sizes come in bands, and quantiles need at least 50 values. The interval share counts consecutive grid years only. The script refuses to run without `--approval`. Confirm the threshold of 5 against PPMI guidance. |
-| H-P, the speed estimates and localisation on the prepared PPMI panel | `scripts/run_hp_real.py` | Refuses to run without `--approval`. Reads only `data/` and writes only aggregates to `results/`. The bootstrap is checkpointed after every replicate. |
+| The expert map from the panel's ratings (§6.4): round 1 (unanimity), round 2 (majority; ties to the investigator, recorded as disputed), fewer than five raters marked investigator-led | `wp1.py`, `scripts/wp1_consensus.py` | `tests/test_wp1.py`; an end-to-end check on made-up Word questionnaires. Returned questionnaires stay in `data/wp1/`; outputs are anonymised counts. |
+| H-P, the speed estimates and localisation on the prepared PPMI panel | `scripts/run_hp_real.py` | Refuses to run without `--approval`. Reads only `data/` and writes only aggregates to `results/`. The bootstrap is checkpointed after every replicate. Map links outside the panel's domains (treatment, domains left out under D26) are set aside and reported; an unknown domain name stops the run. |
 | Panel files (no pickling) | `data.py::save_panel`, `load_panel` | — |
 | Pre-specified constants | `configs/protocol_v0.5.toml`, `config.py` | — |
 
@@ -148,7 +150,7 @@ Harness and data safety:
 
 ## Not yet in code
 
-- **Fitting the simulators to PPMI's pooled population** (§8.2) and the definition-matched generator (§7.3.6). Both need approval.
+- **Fitting the simulators to PPMI's pooled population** (§8.2) and the definition-matched generator (§7.3.6). Both need approval. The plan is in `docs/wp3_simulator_fitting_plan.md`.
 - **The second host (ctsem) and the continuous-time check (§7.12).** They need R packages (D23).
 - **Latent-threshold domains (D26)**, if the panel keeps a floor-bound domain.
 - **Exploratory Steps 3 and 4** (mixtures, random links), and S5/S6.

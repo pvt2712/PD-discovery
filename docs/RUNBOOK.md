@@ -13,6 +13,8 @@ PY="../ppmi-causal/.venv/bin/python"
 
 The code uses the ppmi-causal Python environment (Python 3.13 with numpy, scipy, torch, pandas, causal-learn and statsmodels); nothing new needs installing. pytest is not installed, so the tests have their own runner.
 
+**On a Windows PC,** follow `docs/run_on_windows.md`: a one-time setup, then the same scripts. It suits the synthetic runs (WP2, WP3); the PPMI runs stay on this Mac.
+
 **Rules that every step follows** (protocol §14):
 - **Approval.** A command that reads PPMI participant data refuses to start without `--approval "<who, date, document>"`. Give it only once the investigator's written approval exists. WP0 was approved in the chat on 3 November 2026.
 - **Where data live.** Participant-level tables stay in `data/` (git-ignored). Results in `results/` are aggregates only and are git-ignored too, until you decide what to share. Never copy anything from `data/` elsewhere, and never paste it into an AI tool.
@@ -26,14 +28,24 @@ The code uses the ppmi-causal Python environment (Python 3.13 with numpy, scipy,
 | Speed-only fit | about 30 s | about 9 minutes |
 | Free fit (two starts) | about 1–2 minutes | about 30 minutes |
 | One H-P bootstrap replicate (support selection and refits) | about 1.5 minutes | about 30–40 minutes |
-| One fit pair (speed-only and free) in a 4-job pool, 816 participants | not timed | 2–5.4 hours each (median 3.4), so about one an hour in all |
+| One fit pair (speed-only and free) in a 4-job pool, 816 participants | not timed | 2–5.4 hours each (median 3.4) at the old batch size, so about one an hour in all; about two an hour now |
 
-The protocol's §8.8 assumed 1 minute per fit. At the pool's rate, WP3's replicate numbers for family A at 10 domains would take about 3,500–4,000 hours (about 5 months) on this Mac, so the plan must be revised after the engine gate (D14).
+**Batch size (measured on 4 November 2026, `scripts/bench_threads.py`).** The engine is limited by memory traffic, not by the number of cores, so the number of participants in each batch of the likelihood matters most. It changes only the order of summation: the values are identical.
+
+| Layout | 512 per batch (before) | 128 | 32 |
+|---|---|---|---|
+| 4 single-threaded jobs (power check, WP3) | 1,861 evaluations an hour | 2,735–3,184 | **3,518–3,634** |
+| 1 process with 4 threads (gate, H-P on PPMI) | 1,439 | **2,385** | 1,912 |
+
+- **The default follows the threads** (`likelihood.default_chunk()`): 32 for a single-threaded job, 128 otherwise.
+- **Other layouts were worse.** At the old batch size, 8 jobs managed 1,492 an hour, 2 jobs of 2 threads 1,552, and one process with 10 threads 1,420.
+
+**The protocol's §8.8 assumed 1 minute per fit.** With the new batch size, WP3's replicate numbers for family A at 10 domains would take about 1,700–2,000 hours on this Mac (10–12 weeks), so the plan must be revised after the engine gate (D14).
 
 ## 1. Check the installation (minutes)
 
 ```
-$PY tests/run_tests.py                  # 41 unit tests, about 2-3 minutes; all must pass
+$PY tests/run_tests.py                  # 49 unit tests, about 3 minutes; all must pass
 $PY scripts/smoke_test.py --n 300       # the whole chain on one small synthetic dataset, about 15-25 minutes
 $PY scripts/run_engine_gate.py --quick  # the engine-gate harness at small size, about 15-25 minutes
 ```
@@ -65,7 +77,7 @@ $PY scripts/run_power_check.py --datasets 20 --jobs 4                   # option
 - **The verdict comes from the noncentral estimate.** It is precise from a few datasets, and the pilot passed with power above 99% (WP0 report, §7).
 - **The 20-dataset run is optional.** Its datasets that all reject would confirm 80% power from the rejection rate alone. A rerun skips the datasets already finished.
 
-## 3. WP1: clinical consensus (weeks; no code needed)
+## 3. WP1: clinical consensus (weeks; a script compiles the answers)
 
 1. Fill in the return date and contact in `docs/clinical_expert_questionnaire.md` (v0.2). Then rebuild the Word version:
 
@@ -73,33 +85,62 @@ $PY scripts/run_power_check.py --datasets 20 --jobs 4                   # option
 /usr/bin/python3 scripts/md_to_docx.py docs/clinical_expert_questionnaire.md docs/Clinical_Expert_Questionnaire_Round1_v0.2.docx "Phenotype causal discovery in PD · expert questionnaire, round 1 · v0.2"
 ```
 
-2. Send round 1 to the neurologists: at least five, at least three (D25). Ask about ethics review for an expert survey first (§14).
-3. Compile the answers with the consensus rules of §6.4. Round 2 shows:
-   - the anonymised group answers;
-   - ε in clinical units, from §5 of the WP0 report;
-   - the request for forecasts (D21).
-4. Freeze the decisions:
+2. Send round 1 to the neurologists, with the email drafted in `docs/wp1_invitation_email.md`. Ask about ethics review for an expert survey first (§14). Aim for at least five raters; with three or four, the map is investigator-led (D25).
+3. Save each returned questionnaire in `data/wp1/round1/` (git-ignored: the files name the raters), then compile round 1 with the consensus rules of §6.4:
+
+```
+/usr/bin/python3 scripts/wp1_consensus.py round1 data/wp1/round1/*.docx
+```
+
+   - **What it does.** It reads Section E's ratings from each Word file and prints how many links each rater answered: check any rater with gaps.
+   - **What it writes.** `results/wp1/round1.json` (anonymised counts) and `results/wp1/round2_section_E.md`, the table of links that return in round 2, with the group's round-1 answers.
+   - **Without Word files.** A rater can also answer on a CSV sheet: `scripts/wp1_consensus.py sheet data/wp1/answer_sheet.csv` writes a blank one.
+   - **Round 2's questionnaire** combines:
+     - that table;
+     - the other sections' disagreements;
+     - ε in clinical units, from §5 of the WP0 report;
+     - the request for forecasts (D21).
+4. Save the round-2 answers in `data/wp1/round2/` and compile them:
+
+```
+/usr/bin/python3 scripts/wp1_consensus.py round2 data/wp1/round2/*.docx --decisions data/wp1/decisions.json
+```
+
+   - **The majority decides.** A link without a majority needs your decision in `decisions.json` (`{"from->to": "in"}` or `"out"`) and is recorded as disputed.
+   - **The draft map** goes to `configs/expert_map_draft.json`: domain links, treatment links, disputed links, and whether the map is investigator-led.
+5. Freeze the decisions:
    - the domains (D6);
-   - the expert map, as `configs/expert_map.json` in the format of `configs/expert_map_TEMPLATE.json`;
+   - the expert map: review the draft and save it as `configs/expert_map.json`. The H-P run uses its links between the panel's domains and lists the others it sets aside (treatment links, and domains left out under D26);
    - the confirmatory links (D7), ε (D12), the motor state (D5) and the floor-bound domains (D26);
    - the measurement-error variances (D28), in `configs/measurement_error.json`, from `docs/measurement_reliability.md`.
-5. Record every decision in the protocol (§17) and commit.
+6. Record every decision in the protocol (§17) and commit.
 
 ## 4. WP2: engine gate and protocol freeze (days of compute)
 
-The full gate runs on synthetic data at the real size, so no approval is needed. Set `--n` and `--d` to the frozen domains and WP0's counts.
+The full gate runs on synthetic data at the real size, so no approval is needed. `--wp0` gives every dataset WP0's group sizes, visits and missingness (652 TD and 164 PIGD participants with at least one transition), as the power check does. The settings are read from `configs/wp0_sim_settings.json`, so any computer with the repository can run the gate. Set `--d` to the number of frozen domains; with 10 domains it takes about 1.5–2 days. On a Windows PC, follow `docs/run_on_windows.md`.
 
 ```
-caffeinate -i nohup $PY scripts/run_engine_gate.py --n 900 --d 10 --datasets 20 > results/engine_gate/gate.log 2>&1 &
+caffeinate -i nohup $PY scripts/run_engine_gate.py --wp0 --d 10 --datasets 20 > results/engine_gate/console.out 2>&1 &
 ```
 
-**Output.** `results/engine_gate/gate_n900_d10.json`.
+**Progress.** A line for each finished piece is appended to `results/engine_gate/gate_wp0_d10.log` (follow it with `tail -f`). Some pieces take hours.
+
+**If it stops,** run the same command again. Finished sections, dispersed-start fits, recovery datasets and profiles are saved in `results/engine_gate/gate_wp0_d10.partial.json` and skipped. The file is removed when the report is written.
+
+**Output.** `results/engine_gate/gate_wp0_d10.json`. It records the code it ran: the commit, plus a hash of any uncommitted changes.
+
+**The first run (4 November 2026).** The Mac finished the reference, gradient and quadrature checks; the run was then moved to a Windows PC.
+- The reference and gradient checks pass.
+- **The quadrature check fails its rule.** At WP0's size (816 participants), the speed-only fit's log-likelihood at 12 nodes differs by 0.24 from the 20- and 30-node values, against a limit of 0.01. The 20- and 30-node values agree to within 0.0095.
+- **H-P's statistic barely moves.** It is 29.33, 29.39 and 29.38 at 12, 20 and 30 nodes.
+- **To decide before the freeze:** move to 20 nodes (roughly 1.7 times the compute), or keep 12 and judge agreement by the statistic.
 
 **It passes (§16) if:**
 - the automatic checks pass: reference agreement, gradients, quadrature, dispersed starts, conditioning with any spreads at zero set aside, profiles, and no negative likelihood ratio;
 - the investigator and statistician accept the recovery bias and coverage.
 
 **Then:**
+- decide the number of quadrature nodes (the first run, above);
 - revise the compute plan (D14) from the gate's `timing` block;
 - decide whether the free model's second start is kept; the gate reports `max_gain_from_free_default_start`;
 - register the protocol and analysis plan on OSF (stage 1, D11).
@@ -141,7 +182,7 @@ caffeinate -i nohup $PY scripts/run_hp_real.py --expert configs/expert_map.json 
 - **Steps.** It runs H-P with its sequential bootstrap (support re-selected in every replicate), then the speed estimates with 200 participant-bootstrap samples, then the anchor-free per-link and per-domain tests with the link classes.
 - **Checkpointing.** The bootstrap saves `results/wp4/hp_tdpigd_checkpoint.json` after every replicate. If it stops, run the same command again: it resumes when the observed statistic is unchanged.
 - **Output.** `results/wp4/hp_tdpigd.json`, aggregates only.
-- **Duration.** At 10 domains, the replicates run one at a time, at roughly half an hour each.
+- **Duration.** At 10 domains, the replicates run one at a time, at roughly 30–40 minutes each.
   - **No clear rejection: a day or two.** H-P stops early once 20 replicates are at least as large as the observed statistic.
   - **A rejection: 3–4 weeks.** It runs all 999 replicates.
 

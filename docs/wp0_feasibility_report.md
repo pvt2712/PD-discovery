@@ -143,7 +143,7 @@ Each dataset gets one speed-only fit and one free fit, without a bootstrap.
   - The weakest dataset (40.0 at 22 df) shows the spread: it would not have rejected at 50.
   - WP3's H-M1 checks the bootstrap's size.
 - **For the analysis plan.** The speed ratio from the speed-only model (Sp-1) read 2.1 to 2.7 (median 2.4), against a true 2.0. In S2 that model is wrong by design, so part of PIGD's extra link shows up as faster speed. When H-P rejects, Sp-1 therefore mixes speed with the pathway difference, and the analysis plan should say how it is read then. Its bias when the speed-only model is right is judged in S1 (WP3).
-- **Cost (for D14).** Each dataset took 2.0 to 5.4 hours (median 3.4) with 4 jobs running together, and the pilot took about 9 hours. So this Mac completes about one fit pair an hour at 10 domains. The 200-dataset Monte Carlo run cannot change the verdict and would take about a week. If a direct Monte Carlo check is wanted, 20 datasets that all reject show at least 80% power on their own (exact lower bound 83%).
+- **Cost (for D14).** Each dataset took 2.0 to 5.4 hours (median 3.4) with 4 jobs running together, and the pilot took about 9 hours. So this Mac completed about one fit pair an hour at 10 domains. A smaller likelihood batch, adopted on 4 November after a timing test, roughly doubles that rate with identical results (runbook, §0). The 200-dataset Monte Carlo run cannot change the verdict and would take about a week. If a direct Monte Carlo check is wanted, 20 datasets that all reject show at least 80% power on their own (exact lower bound 83%).
 
 ## Files
 
