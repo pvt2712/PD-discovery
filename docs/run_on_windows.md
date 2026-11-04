@@ -11,9 +11,10 @@
    ```
    Alternatively, use the installers from python.org (tick "Add python.exe to PATH") and git-scm.com. Close and reopen PowerShell afterwards.
 
-2. **Get the code.** The branch `phenotype-discovery` of the GitHub repository holds this project:
+2. **Get the code.** The branch `phenotype-discovery` of the GitHub repository holds this project. Put it in `C:\work`, outside any folder that OneDrive backs up, so that PPMI files placed in it later never sync to the cloud. On many PCs OneDrive moves Documents, and `$HOME\Documents` is then not where it seems:
    ```powershell
-   cd $HOME\Documents
+   New-Item -ItemType Directory -Force C:\work
+   cd C:\work
    git clone -b phenotype-discovery https://github.com/pvt2712/PD-discovery.git phenotype-discovery
    cd phenotype-discovery
    ```
@@ -42,14 +43,14 @@
 ## 3. Run the gate (about 1.5–2 days)
 
 ```powershell
-cd $HOME\Documents\phenotype-discovery
+cd C:\work\phenotype-discovery
 $env:PYTHONUTF8 = "1"
 .\.venv\Scripts\python.exe scripts\run_engine_gate.py --wp0 --d 10 --datasets 20
 ```
 
 - **Leave the window open.** It prints a line each time a piece finishes. Some pieces take hours, so long silences are normal. The same lines are appended to `results\engine_gate\gate_wp0_d10.log`. To follow that log from a second PowerShell window:
   ```powershell
-  Get-Content $HOME\Documents\phenotype-discovery\results\engine_gate\gate_wp0_d10.log -Wait -Tail 20
+  Get-Content C:\work\phenotype-discovery\results\engine_gate\gate_wp0_d10.log -Wait -Tail 20
   ```
 - **If it stops,** run the same three lines again. That covers a closed window, a restart, Ctrl+C or an error. Finished sections, dispersed-start fits, recovery datasets and profiles are kept in `results\engine_gate\gate_wp0_d10.partial.json` and skipped.
 - **The time** depends on the PC's processor and memory speed. The gate is one process, and the engine is limited by memory speed more than by the number of cores. Expect roughly the Mac's 1.5–2 days.
@@ -68,7 +69,7 @@ Each line ends with `evals_per_hour`. If fewer threads come out as fast, add `--
 ## 5. Updating the code later
 
 ```powershell
-cd $HOME\Documents\phenotype-discovery
+cd C:\work\phenotype-discovery
 git pull
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
 ```
@@ -77,6 +78,8 @@ Don't update the code while a gate run is going.
 
 ## 6. When something goes wrong
 
+- **"'.\.venv\Scripts\python.exe' is not recognized".** PowerShell is not in the project folder, or the environment was never made. Run `cd C:\work\phenotype-discovery`, then step 3 of section 1.
+- **"'git' or 'py' is not recognized".** Install it (section 1, step 1), then close and reopen PowerShell.
 - **pip can't find torch.** Check that Python is 3.13, 64-bit: `py -3.13 -c "import sys; print(sys.version)"` should show "64 bit".
 - **"holds a gate run with other settings".** The partial file belongs to a different command. Move it out of `results\engine_gate\` to start afresh.
 - **Anything else.** The log records the error. Copy its last lines to Claude.
@@ -111,7 +114,7 @@ The other folders are not used: imaging, `Data___Databases`, `PPMI_Online` and t
 **Run these in order,** with your own path in place of `D:\PPMI\raw`:
 
 ```powershell
-cd $HOME\Documents\phenotype-discovery
+cd C:\work\phenotype-discovery
 git pull
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
 $env:PYTHONUTF8 = "1"
@@ -139,7 +142,7 @@ H-P needs only two files from the Mac's `phenotype-discovery/data/derived/` fold
 - `panel_spec.json` (about 1 KB) holds the domains, the treated domains and the measurement-error variances.
 
 ```powershell
-cd $HOME\Documents\phenotype-discovery
+cd C:\work\phenotype-discovery
 git pull
 New-Item -ItemType Directory -Force data\derived
 ```
