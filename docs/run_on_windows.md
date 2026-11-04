@@ -40,31 +40,33 @@
 - **Updates.** In Settings → Windows Update, choose "Pause updates" for a week. An automatic restart would interrupt the run. The run would resume, but would lose the piece it was working on.
 - **Power.** Keep the PC plugged in, and avoid other heavy programs while the gate runs.
 
-## 3. Run the gate (about 1.5–2 days)
+## 3. Run the gate (about a day with 5 jobs)
 
 ```powershell
 cd C:\work\phenotype-discovery
 $env:PYTHONUTF8 = "1"
-.\.venv\Scripts\python.exe scripts\run_engine_gate.py --wp0 --d 10 --datasets 20
+.\.venv\Scripts\python.exe scripts\run_engine_gate.py --wp0 --d 10 --datasets 20 --jobs 5
 ```
+
+`--jobs 5` runs five independent pieces at once, each in its own single-threaded process: the dispersed starts, the profiles and the 40 recovery datasets. This uses the processor far better than one process with many threads, because the engine is limited by memory speed. Every piece has its own seed, so the results do not depend on the number of jobs. Five suits a 6-core processor such as the Ryzen 5 7600 and needs a few GB of the 32 GB of memory; section 4 shows how to check the best number.
 
 - **Leave the window open.** It prints a line each time a piece finishes. Some pieces take hours, so long silences are normal. The same lines are appended to `results\engine_gate\gate_wp0_d10.log`. To follow that log from a second PowerShell window:
   ```powershell
   Get-Content C:\work\phenotype-discovery\results\engine_gate\gate_wp0_d10.log -Wait -Tail 20
   ```
 - **If it stops,** run the same three lines again. That covers a closed window, a restart, Ctrl+C or an error. Finished sections, dispersed-start fits, recovery datasets and profiles are kept in `results\engine_gate\gate_wp0_d10.partial.json` and skipped.
-- **The time** depends on the PC's processor and memory speed. The gate is one process, and the engine is limited by memory speed more than by the number of cores. Expect roughly the Mac's 1.5–2 days.
+- **The time** depends on the PC's processor and memory speed. The first sections (the reference checks, the gate dataset's fit, quadrature, identification) run one at a time; the rest run in parallel. With 5 jobs, expect roughly a day, against the Mac's 1.5–2 days in one process.
 - **When it finishes,** the last log line says whether all automatic checks pass. The report is `results\engine_gate\gate_wp0_d10.json`. Copy it and the log to the Mac's `results/engine_gate/` folder, by USB stick or your own cloud drive; both are synthetic. Then ask Claude to read them, or follow `docs/RUNBOOK.md` §4.
 
-## 4. Optional: choose the number of threads first (5 minutes)
+## 4. Optional: choose the number of jobs first (10 minutes)
 
-By default PyTorch uses one thread per physical core. Because the engine is limited by memory speed, fewer threads can be as fast. To compare, put this PC's number of physical cores in place of the last setting (Task Manager → Performance → CPU shows "Cores"):
+The best number of jobs depends on the processor and the memory. To compare, run the same likelihood work as 4, 5 and 6 single-threaded jobs, and as one process with 6 threads:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\bench_threads.py --configs 1x4 1x8 1x16 --evals 20
+.\.venv\Scripts\python.exe scripts\bench_threads.py --configs 4x1 5x1 6x1 1x6 --evals 20
 ```
 
-Each line ends with `evals_per_hour`. If fewer threads come out as fast, add `--threads N` to the gate command, with N the best number.
+Each line ends with `evals_per_hour`, the work done per hour by all jobs together. Use the best of `4x1`, `5x1` and `6x1` as `--jobs` for the gate and for H-P (section 7c).
 
 ## 5. Updating the code later
 
@@ -162,16 +164,18 @@ $env:PYTHONUTF8 = "1"
 
 ```powershell
 $env:PYTHONUTF8 = "1"
-.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --approval "Investigator, 4 November 2026: exploratory run before WP1-WP3"
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 5 --approval "Investigator, 4 November 2026: exploratory run before WP1-WP3"
 ```
 
+`--jobs 5` runs five bootstrap replicates at once, then five speed samples at once, each in its own process. Every replicate has its own seed, and the stopping rule is applied in replicate order, so the result does not depend on the number of jobs. The first hour, the two observed fits, still runs as one process.
+
 - **Time.**
-  - The observed fits take about an hour, then each bootstrap replicate about 30–40 minutes.
-  - The bootstrap stops once 20 replicates reach the observed statistic. If H-P is far from rejecting, that takes about 40 replicates, roughly a day.
-  - If H-P rejects, it runs to the cap: 199 replicates, about 5 days, which gives p-values down to 0.005. Without `--n-max` the cap is the protocol's 999, about 3 weeks.
-  - The speed bootstrap then adds about 2–3 days for 100 samples.
+  - The observed fits take an hour or more. One at a time, each bootstrap replicate then takes about 30–40 minutes; five at once should finish about 1.5–2 times as many per hour. On the Mac, four jobs gave 1.5 times; section 4 measures it on this PC.
+  - The bootstrap stops once 20 replicates reach the observed statistic. If H-P is far from rejecting, that takes about 40 replicates: a day one at a time, perhaps 12–16 hours with 5 jobs.
+  - If H-P rejects, it runs to the cap: 199 replicates, which gives p-values down to 0.005. That is about 5 days one at a time and roughly 3 days with 5 jobs. Without `--n-max` the cap is the protocol's 999.
+  - The speed bootstrap then adds 100 samples: about 2–3 days one at a time, roughly 1.5 days with 5 jobs.
 - **If it stops,** run the same command again. Every replicate and speed sample is kept in `results\wp4\hp_tdpigd_checkpoint.json`.
 - **Progress** is printed and appended to `results\wp4\hp_tdpigd.log`.
-- **One job at a time.** Running it alongside the engine gate slows both, because the engine is limited by memory speed. If the PC has many cores, `--threads` can split them between the two runs.
+- **One run at a time.** Run H-P and the engine gate one after the other: each already uses the processor fully with `--jobs`, so running both at once only slows each.
 - **Outputs** are aggregates only: `results\wp4\hp_first_look.json` or `hp_tdpigd.json`, with their logs. Copy them back to the Mac's `results/wp4/` folder.
 - **Reading the result.** It is exploratory: the map is provisional, and WP1–WP3 come later. The report says so in its first line.

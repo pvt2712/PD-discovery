@@ -30,7 +30,7 @@ import _common
 import numpy as np
 from scipy import stats
 
-from pdx import config, hp, localise, speed, wp1
+from pdx import config, hp, localise, parallel, speed, wp1
 from pdx.data import load_panel
 from pdx.engine.fit import covariance_checked, hessian
 from pdx.engine.likelihood import prepare
@@ -147,6 +147,7 @@ def main():
     ap.add_argument("--n-max", type=int, default=None, help="H-P bootstrap replicates at most (default: the protocol's)")
     ap.add_argument("--speed-bootstrap", type=int, default=None, help="speed bootstrap samples (default: the protocol's)")
     ap.add_argument("--threads", type=int, default=None, help="threads for the engine (default: PyTorch's)")
+    ap.add_argument("--jobs", type=int, default=1, help="bootstrap replicates and speed samples run this many at once")
     ap.add_argument("--out", default=str(_common.RESULTS / "wp4"))
     a = ap.parse_args()
     if a.threads:
@@ -221,8 +222,15 @@ def main():
     else:
         state = {"lr": lr_obs, "replicates": []}
         write_atomic(ckpt, json.dumps(state))
-    rng = np.random.default_rng([a.seed, len(state["replicates"])])
-    res = hp.run_hp(panel, spec, support_fn, n_max, cfg["hp"]["h"], rng, callback=save, resume=resume, fits=fits)
+    # each replicate has its own seed, so `jobs` of them run at once and Besag-Clifford's rule is
+    # applied in replicate order, as one at a time (to the fits' numerical tolerance)
+    draws = parallel.ordered(hp.boot_replicate, range(len(state["replicates"]), n_max), a.jobs, hp.boot_setup,
+                             (fits[1], panel, spec, expert, s1, None, a.seed))
+    try:
+        res = hp.run_hp(panel, spec, support_fn, n_max, cfg["hp"]["h"], callback=save, resume=resume, fits=fits,
+                        draw=lambda: next(draws))
+    finally:
+        draws.close()
     log(f"H-P done: p = {res.p:.3g} from {res.n_drawn} bootstrap replicates")
     status = map_status if map_status and map_status.startswith(("PROVISIONAL", "TEMPLATE")) else None
     report = {"status": ("EXPLORATORY: " + status) if status else "map as given", "approval": a.approval,
@@ -232,9 +240,9 @@ def main():
               "map_links_set_aside": aside, "bootstrap_lr": res.lr_star}
     spec_s = spec.with_support(res.support)
     if n_speed:
-        report["speed"] = speed.bootstrap_speed(panel, spec_s, res.null_fit, res.free_fit, n_speed,
-                                                np.random.default_rng([a.seed, 1]), support_fn=support_fn,
-                                                done=state.get("speed"), on_sample=save_speed)
+        report["speed"] = speed.bootstrap_speed(panel, spec_s, res.null_fit, res.free_fit, n_speed, seed=a.seed,
+                                                support=(expert, s1), done=state.get("speed"),
+                                                on_sample=save_speed, jobs=a.jobs)
     else:
         report["speed"] = {"estimates": speed.speed_estimates(res.null_fit, res.free_fit, panel), "B": 0}
     prep = prepare(panel, spec_s.meas_var, spec_s.n_groups)

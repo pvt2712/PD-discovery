@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+from helpers import slow
 
 from pdx import gate
 
@@ -39,7 +40,7 @@ def test_dispersed_starts_resumed_midway_give_the_same_fits():
     full = gate.check_dispersed_starts(panel, spec, np.random.default_rng(1), n_starts=1,
                                        on_fit=lambda done: seen.append({k: list(v) for k, v in done.items()}))
     resumed = gate.check_dispersed_starts(panel, spec, np.random.default_rng(1), n_starts=1, done=seen[1])
-    assert len(seen) == 4 and seen[1] == {"null": full["null"]["logliks"]} and resumed == full
+    assert len(seen) == 4 and seen[1] == {"null": full["null"]["logliks"], "free": []} and resumed == full
 
 
 def test_quadrature_check_reports_the_statistic_at_each_node_count():
@@ -51,3 +52,27 @@ def test_quadrature_check_reports_the_statistic_at_each_node_count():
     q = gate.check_quadrature_lr(f0, panel)
     assert set(q["lr"]) == {"12", "20", "30"} and min(q["lr"].values()) > -1e-6
     assert q["lr_spread"] == max(q["lr"].values()) - min(q["lr"].values()) and "pass" in q
+
+
+@slow
+def test_parallel_gate_pieces_match_one_at_a_time():
+    from pdx.engine.fit import fit_model
+    from pdx.qualification import spec_for
+    from pdx.sim import scenarios
+    serial = gate.recovery("S1", 60, 2, seed=3, d=4, with_intervals=False)
+    together = gate.recovery("S1", 60, 2, seed=3, d=4, with_intervals=False, jobs=2)
+    # one job runs in this process with several threads, the workers single-threaded: the fits then
+    # agree to their numerical tolerance, not bit for bit
+    assert abs(serial["min_lr"] - together["min_lr"]) < 1e-3
+    assert abs(serial["mean_abs_error_A"] - together["mean_abs_error_A"]) < 1e-4
+    panel, info = scenarios.generate("S1", 60, np.random.default_rng(8), d=4)
+    spec = spec_for(panel, info)
+    a = gate.check_dispersed_starts(panel, spec, np.random.default_rng(2), n_starts=1)
+    b = gate.check_dispersed_starts(panel, spec, np.random.default_rng(2), n_starts=1, jobs=2)
+    assert all(np.allclose(a[k]["logliks"], b[k]["logliks"], rtol=0, atol=1e-3) for k in ("null", "free"))
+    f0 = fit_model(panel, spec, "null")
+    jobs = [("gamma", 0, 0.2), ("log_sigma", 1, 0.2)]
+    one = list(gate.parallel.ordered(gate.profile_job, jobs, 1, gate.profile_setup, (f0, panel, 3, None)))
+    two = list(gate.parallel.ordered(gate.profile_job, jobs, 2, gate.profile_setup, (f0, panel, 3, None)))
+    assert [p["parameter"] for p in two] == ["gamma[0]", "log_sigma[1]"]
+    assert all(np.allclose(p["loglik"], q["loglik"], rtol=0, atol=1e-3) for p, q in zip(one, two))

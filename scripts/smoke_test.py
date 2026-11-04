@@ -79,7 +79,7 @@ def main():
     spec_s = spec.with_support(res.support)
     prep = prepare(panel, spec_s.meas_var, spec_s.n_groups)
     t0 = time.time()
-    out["speed"] = speed.bootstrap_speed(panel, spec_s, res.null_fit, res.free_fit, B=4, rng=rng, fit_kw=fit_kw)
+    out["speed"] = speed.bootstrap_speed(panel, spec_s, res.null_fit, res.free_fit, B=4, seed=1, fit_kw=fit_kw)
     tick("speed", t0)
 
     t0 = time.time()

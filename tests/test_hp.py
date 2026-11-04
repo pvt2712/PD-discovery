@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 from helpers import slow
 
@@ -45,8 +47,33 @@ def test_speed_bootstrap_resumed_midway_gives_the_same_intervals():
     spec = spec_for(panel, info)
     f0, f1 = fit_pair(panel, spec)
     seen = []
-    full = bootstrap_speed(panel, spec, f0, f1, B=2, rng=np.random.default_rng(7),
+    full = bootstrap_speed(panel, spec, f0, f1, B=2, seed=7,
                            on_sample=lambda done: seen.append({k: (list(v) if isinstance(v, list) else v)
                                                                for k, v in done.items()}))
-    resumed = bootstrap_speed(panel, spec, f0, f1, B=2, rng=np.random.default_rng(7), done=seen[0])
+    resumed = bootstrap_speed(panel, spec, f0, f1, B=2, seed=7, done=seen[0])
+    parallel_run = bootstrap_speed(panel, spec, f0, f1, B=2, seed=7, jobs=2)
     assert len(seen) == 2 and resumed["sp1_ci"] == full["sp1_ci"] and resumed["B_used"] == full["B_used"]
+    assert np.allclose(parallel_run["sp1_ci"], full["sp1_ci"], rtol=1e-3)       # workers are single-threaded
+
+
+def test_parallel_runs_give_the_results_in_order_from_several_workers():
+    from pdx import parallel
+    one = list(parallel.ordered(parallel.check_square, range(6), 1, parallel.check_setup, (2.0,)))
+    many = list(parallel.ordered(parallel.check_square, range(6), 3, parallel.check_setup, (2.0,)))
+    assert [v for v, _ in one] == [v for v, _ in many] == [2.0 * x * x for x in range(6)]
+    assert all(pid != os.getpid() for _, pid in many) and all(pid == os.getpid() for _, pid in one)
+    assert list(parallel.ordered(parallel.check_square, [], 3, parallel.check_setup, (2.0,))) == []
+
+
+@slow
+def test_bootstrap_replicates_agree_however_many_run_at_once():
+    from helpers import small_panel, spec_for
+    from pdx import hp, parallel
+    from pdx.step1 import Step1Config
+    panel, info = small_panel("S1", n=80, seed=5)
+    spec = spec_for(panel, info)
+    spec_s, f0, f1 = hp.observed_fits(panel, spec)
+    args = (f0, panel, spec, info["support"], Step1Config(), None, 11)
+    one = list(parallel.ordered(hp.boot_replicate, range(3), 1, hp.boot_setup, args))
+    two = list(parallel.ordered(hp.boot_replicate, range(3), 2, hp.boot_setup, args))
+    assert len(one) == 3 and all(abs(a[0] - b[0]) < 1e-3 and a[1] == b[1] for a, b in zip(one, two))

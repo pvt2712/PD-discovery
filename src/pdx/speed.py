@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from . import parallel
 from .data import Panel
 from .engine.fit import Fit, fit_pair
 from .engine.likelihood import prepare
@@ -73,34 +74,51 @@ def _flat(e: dict, free_fit: Fit) -> np.ndarray:
                            [s2["share_explained"]], np.ravel(s2["speed_load_corr"]), [e["sp3"]["share"]]])
 
 
+def sample_setup(panel: Panel, spec: ModelSpec, null_fit: Fit, support, fit_kw: dict | None, seed: int) -> dict:
+    """Shared state of the speed-bootstrap workers (parallel.ordered); support is (expert map,
+    Step 1 configuration) to re-select the support in every sample, or None to keep the spec's."""
+    from .step1 import make_support_fn
+    return {"panel": panel, "spec": spec, "null_fit": null_fit, "fit_kw": fit_kw or {}, "seed": seed,
+            "support_fn": None if support is None else make_support_fn(*support),
+            "groups": [np.where(panel.group == g)[0] for g in range(panel.n_groups)]}
+
+
+def bootstrap_sample(shared: dict, b: int):
+    """Bootstrap sample b, participants resampled within phenotype with the sample's own random
+    stream: (estimates as one vector, drift difference), or None if the fits fail."""
+    rng = np.random.default_rng([shared["seed"], 1, b])
+    idx = np.concatenate([rng.choice(gi, size=len(gi)) for gi in shared["groups"]])
+    bp, spec, support_fn = shared["panel"].subset(idx), shared["spec"], shared["support_fn"]
+    try:
+        sb = spec if support_fn is None else spec.with_support(support_fn(bp))
+        warm = shared["null_fit"].x if np.array_equal(sb.support, spec.support) else None
+        f0, f1 = fit_pair(bp, sb, x0_null=warm, **shared["fit_kw"])
+        e = speed_estimates(f0, f1, bp)
+        return _flat(e, f1).tolist(), (f1.params["A"][1] - f1.params["A"][0]).ravel().tolist()
+    except Exception:
+        return None
+
+
 def bootstrap_speed(panel: Panel, spec: ModelSpec, null_fit: Fit, free_fit: Fit, B: int = 200,
-                    rng: np.random.Generator | None = None, fit_kw: dict | None = None,
-                    level: float = 0.95, support_fn=None, done: dict | None = None, on_sample=None) -> dict:
-    """Participant bootstrap of Sp-1 to Sp-3. support_fn, if given, re-selects the support in
-    every sample, as for the observed fits. `done` holds the samples already fitted (from a
-    checkpoint, with the same rng); on_sample(done) is called after each new one."""
-    rng = rng or np.random.default_rng()
-    fit_kw = fit_kw or {}
+                    seed: int = 0, fit_kw: dict | None = None, level: float = 0.95, support=None,
+                    done: dict | None = None, on_sample=None, jobs: int = 1) -> dict:
+    """Participant bootstrap of Sp-1 to Sp-3. support (expert map, Step 1 configuration), if
+    given, re-selects the support in every sample, as for the observed fits. Each sample has its
+    own seed, so `jobs` samples can run at once with the same result. `done` holds the samples
+    already fitted (from a checkpoint); on_sample(done) is called after each new one."""
     est = speed_estimates(null_fit, free_fit, panel)
     theta = _flat(est, free_fit)
     d_hat = (free_fit.params["A"][1] - free_fit.params["A"][0]).ravel()
     done = {"rows": [], "diffs": [], "failures": 0, **(done or {})}
     rows, diffs = done["rows"], done["diffs"]
-    groups = [np.where(panel.group == g)[0] for g in range(panel.n_groups)]
-    for b in range(B):
-        idx = np.concatenate([rng.choice(gi, size=len(gi)) for gi in groups])
-        if b < len(rows) + done["failures"]:
-            continue                       # fitted before a restart; drawing again keeps the stream in step
-        bp = panel.subset(idx)
-        try:
-            sb = spec if support_fn is None else spec.with_support(support_fn(bp))
-            warm = null_fit.x if np.array_equal(sb.support, spec.support) else None
-            f0, f1 = fit_pair(bp, sb, x0_null=warm, **fit_kw)
-            e = speed_estimates(f0, f1, bp)
-            rows.append(_flat(e, f1).tolist())
-            diffs.append((f1.params["A"][1] - f1.params["A"][0]).ravel().tolist())
-        except Exception:
+    start = len(rows) + done["failures"]
+    for out in parallel.ordered(bootstrap_sample, range(start, B), jobs, sample_setup,
+                                (panel, spec, null_fit, support, fit_kw, seed)):
+        if out is None:
             done["failures"] += 1
+        else:
+            rows.append(out[0])
+            diffs.append(out[1])
         if on_sample:
             on_sample(done)
     failures = done["failures"]

@@ -2,6 +2,7 @@
 
     python scripts/run_engine_gate.py --quick                      # the harness itself, in minutes
     python scripts/run_engine_gate.py --wp0 --d 10 --datasets 20   # the real size at WP0's numbers (days)
+    python scripts/run_engine_gate.py --wp0 --d 10 --datasets 20 --jobs 5   # the same, 5 pieces at once
     python scripts/run_engine_gate.py --n 1400 --d 10              # a chosen size, default visits
 
 --wp0 gives every real-size dataset WP0's group sizes, visits and missingness, as the power check
@@ -46,6 +47,8 @@ def main():
     ap.add_argument("--wp0", action="store_true", help="WP0's group sizes, visits and missingness")
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--threads", type=int, default=None, help="threads for the engine (default: PyTorch's)")
+    ap.add_argument("--jobs", type=int, default=1,
+                    help="dispersed starts, profiles and recovery datasets run this many at once")
     ap.add_argument("--out", default=str(_common.RESULTS / "engine_gate"))
     a = ap.parse_args()
     if a.threads:
@@ -72,7 +75,8 @@ def main():
     log(f"started; finished work is kept in {partial.name}, so the same command resumes")
     try:
         report = {"code": code_version(),
-                  **run_gate(n, a.d, a.datasets, a.seed, a.quick, sim_kw=sim_kw, checkpoint=partial, log=log)}
+                  **run_gate(n, a.d, a.datasets, a.seed, a.quick, sim_kw=sim_kw, checkpoint=partial, log=log,
+                             jobs=a.jobs)}
     except KeyboardInterrupt:
         log("stopped by the user; run the same command to resume")
         raise

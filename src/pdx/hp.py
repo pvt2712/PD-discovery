@@ -83,6 +83,21 @@ def _replicate(f0: Fit, panel: Panel, spec: ModelSpec, support_fn, rng, fit_kw, 
     return stat, True, bool(g0.success and g1.success), extra
 
 
+def boot_setup(f0: Fit, panel: Panel, spec: ModelSpec, expert, step1_cfg, fit_kw: dict | None, seed: int) -> dict:
+    """Shared state of the bootstrap workers (parallel.ordered): the support is re-selected with
+    `step1_cfg` around the `expert` map, as for the observed fits; step1_cfg None keeps the spec's."""
+    from .step1 import make_support_fn
+    return {"f0": f0, "panel": panel, "spec": spec, "fit_kw": fit_kw or {}, "seed": seed,
+            "support_fn": None if step1_cfg is None else make_support_fn(expert, step1_cfg)}
+
+
+def boot_replicate(shared: dict, i: int) -> tuple:
+    """Replicate i with its own random stream, so the bootstrap does not depend on how many
+    replicates run at once: (statistic, ok, converged)."""
+    rng = np.random.default_rng([shared["seed"], 3, i])
+    return _replicate(shared["f0"], shared["panel"], shared["spec"], shared["support_fn"], rng, shared["fit_kw"])[:3]
+
+
 def sequential_p(draw, observed: float, n_max: int = 999, h: int = 20, callback=None, resume: list | None = None) -> dict:
     """Besag-Clifford sequential Monte Carlo p-value. draw() returns (statistic, ok) or a longer
     tuple starting with them; a failed replicate (ok False) counts as at least as large as the
@@ -122,21 +137,23 @@ def observed_fits(panel: Panel, spec: ModelSpec, support_fn=None, fit_kw: dict |
 
 def run_hp(panel: Panel, spec: ModelSpec, support_fn=None, n_max: int = 999, h: int = 20,
            rng: np.random.Generator | None = None, fit_kw: dict | None = None,
-           callback=None, resume: list | None = None, on_replicate=None, fits: tuple | None = None) -> HPResult:
+           callback=None, resume: list | None = None, on_replicate=None, fits: tuple | None = None,
+           draw=None) -> HPResult:
     """The full H-P procedure on one dataset (real data, or a single simulated dataset).
 
     callback(drawn, exceed, statistic, ok) is called after every replicate (for checkpoints);
     resume continues from saved (statistic, ok) pairs; on_replicate(sim, null_fit, free_fit)
     returns extra per-replicate output (for example per-link p-values for recalibration);
-    fits reuses the output of observed_fits.
+    fits reuses the output of observed_fits; draw, if given, supplies the replicates instead
+    (for example boot_replicate run in parallel, in replicate order).
     """
     rng = rng or np.random.default_rng()
     fit_kw = fit_kw or {}
     spec_s, f0, f1 = fits if fits is not None else observed_fits(panel, spec, support_fn, fit_kw)
     lr_raw = 2.0 * (f1.loglik - f0.loglik)
     lr = lr_stat(f0, f1)
-    seq = sequential_p(lambda: _replicate(f0, panel, spec, support_fn, rng, fit_kw, on_replicate),
-                       lr, n_max, h, callback, resume)
+    draw = draw or (lambda: _replicate(f0, panel, spec, support_fn, rng, fit_kw, on_replicate))
+    seq = sequential_p(draw, lr, n_max, h, callback, resume)
     non_conv = sum(1 for r in seq["rest"] if r and not r[0])
     extras = [r[1] for r in seq["rest"] if r and len(r) > 1]
     return HPResult(lr, seq["p"], seq["n_drawn"], seq["n_exceed"], seq["stopped_early"], h_p_df(spec_s),

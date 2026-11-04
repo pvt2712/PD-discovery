@@ -125,6 +125,8 @@ caffeinate -i nohup $PY scripts/run_engine_gate.py --wp0 --d 10 --datasets 20 > 
 
 **Progress.** A line for each finished piece is appended to `results/engine_gate/gate_wp0_d10.log` (follow it with `tail -f`). Some pieces take hours.
 
+**Parallel jobs.** `--jobs N` runs N dispersed starts, profiles or recovery datasets at once, each in a single-threaded worker process. Every piece has its own seed. Any N of 2 or more gives identical results; one job, which runs in the main process with its threads, agrees with them to the fits' numerical tolerance (below 1e-4 in a statistic). A restart may use another N. On this Mac, 4 jobs did 1.5 times the work of one 4-thread process (§0). `scripts/bench_threads.py --configs 4x1 5x1 6x1 1x6` finds the best N on another machine.
+
 **If it stops,** run the same command again. Finished sections, dispersed-start fits, recovery datasets and profiles are saved in `results/engine_gate/gate_wp0_d10.partial.json` and skipped. The file is removed when the report is written.
 
 **Output.** `results/engine_gate/gate_wp0_d10.json`. It records the code it ran: the commit, plus a hash of any uncommitted changes.
@@ -183,6 +185,7 @@ caffeinate -i nohup $PY scripts/run_hp_real.py --expert configs/expert_map.json 
 - **Checkpointing.** H-P's bootstrap and the speed bootstrap save `results/wp4/hp_tdpigd_checkpoint.json` after every replicate or sample. If the run stops, run the same command again: it resumes when the observed statistic is unchanged.
 - **Progress** is printed and appended to `results/wp4/hp_tdpigd.log`.
 - **Shorter runs.** `--n-max` caps H-P's bootstrap, for example at 199, which gives p-values down to 0.005. `--speed-bootstrap` sets the number of speed samples. The report records both.
+- **Parallel jobs.** `--jobs N` runs N bootstrap replicates, then N speed samples, at once. Each replicate has its own seed, and Besag–Clifford's rule is applied in replicate order, so the p-value does not depend on N (to the fits' numerical tolerance).
 - **Output.** `results/wp4/hp_tdpigd.json`, aggregates only.
 - **Duration.** At 10 domains, the replicates run one at a time, at roughly 30–40 minutes each.
   - **No clear rejection: a day or two.** H-P stops early once 20 replicates are at least as large as the observed statistic.
