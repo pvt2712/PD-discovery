@@ -8,11 +8,21 @@ h = 20                     # Besag-Clifford stopping count
 n_max_rbd = 199            # secondary axis
 
 [engine]                   # §7.1
-n_quad = 12                # checked against 20 and 30 at the engine gate
+n_quad = 20                # D32 (5 Nov 2026): 12 missed the gate's own rule at the real size (audit A7); checked against 30 and 40
+load_on_speed = false      # D31 (5 Nov 2026): lam = 0, the load does not move with speed; lam free is a sensitivity analysis
 treatment = "emax"         # D24; "linear" if the curve is not identified
 ed50 = 3.0                 # 100 mg LEDD units (provisional)
 ec50_ldr = 3.0
 noise_era_col = 0          # era shifts the noise (§2.3)
+
+[fit]                      # §7.1; audit A3 (5 Nov 2026)
+maxiter = 5000             # iterations at most for each start
+window = 100               # a start stops once the log-likelihood gains less than min_gain over this many iterations
+min_gain = 0.01
+
+[treatment]                # D24, §6.1 (provisional, fixed with the clinical panel in WP1)
+ldr_half_life_days = 28    # the slow effect compartment of the long-duration response: "exposure over the preceding weeks"
+on_when_treated = ["function"]   # rated on medication, so its short-duration term applies whenever the dose is positive
 
 [speed]                    # §2.5
 bootstrap = 200

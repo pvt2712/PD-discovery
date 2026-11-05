@@ -21,6 +21,15 @@ Provisional choices, to be fixed in WP1 and recorded there:
 - genetic enrolment (LRRK2, GBA, SNCA, PRKN, PINK1, other variant) defines genetic PD;
 - treated at baseline: on dopaminergic treatment at the baseline examination, or a positive
   LEDD on the baseline date;
+- an examination counts as untreated only if neither its form (PDTRTMNT) nor the medication log
+  shows treatment on that date; otherwise, without a recorded OFF or ON state, it is "treated,
+  state unrecorded" and its motor scores are not used (D5, D24; audit A6);
+- the dose in force on a date comes from the medication log at month resolution: a record that
+  stops in the date's month gives way to any record starting in that month (a dose change is
+  entered as a stop and a new start; audit A4);
+- the long-duration exposure is the levodopa dose (with a COMT inhibitor's multiplier) passed
+  through a slow effect compartment over the preceding months, with a provisional half-life
+  (D24, configs/protocol_v0.5.toml [treatment]);
 - the Part II endpoint at 24 months: death by 24 months, or Schwab & England below 80 at the
   year-2 visit.
 """
@@ -55,8 +64,13 @@ GDS_NO = ["GDSSATIS", "GDSGSPIR", "GDSHAPPY", "GDSALIVE", "GDSENRGY"]
 RBDSQ_ITEMS = ["DRMVIVID", "DRMAGRAC", "DRMNOCTB", "SLPLMBMV", "SLPINJUR", "DRMVERBL", "DRMFIGHT", "DRMUMV", "DRMOBJFL",
                "MVAWAKEN", "DRMREMEM", "SLPDSTRB"]
 RBDSQ_NEURO = ["STROKE", "HETRA", "PARKISM", "RLS", "NARCLPSY", "DEPRS", "EPILEPSY", "BRNINFM", "CNSOTH"]
-LEVODOPA = (r"lev[a-z]*d[oa]p|levocomp|levopar|nacom|isicom|sinemet|madopar|rytary|crexont|stalevo|duodopa|inbrija|"
-            r"dopicar|syndopa|prolopa|parcopa|benserazid|carbidopa")
+# levodopa by name (audit A6: L-dopa, Duopa, co-careldopa, co-beneldopa and Dhivy added; carbidopa
+# alone, such as Lodosyn, is not levodopa; \bl-dopa\b leaves out methyldopa)
+LEVODOPA = (r"lev[a-z]*d[oa]p|\bl[- ]?dopa\b|careldopa|beneldopa|levocomp|levopar|nacom|isicom|sinemet|madopar|"
+            r"rytary|numient|crexont|stalevo|corbilta|sastravi|duodopa|duopa|lecigon|vyalev|dhivy|inbrija|dopicar|"
+            r"syndopa|prolopa|parcopa|atamet|kinson|benserazid")
+LDR_HALF_LIFE_DAYS = 28.0      # provisional (D24); the run scripts pass configs/protocol_v0.5.toml's value
+MOTOR_SCORES = ["tremor", "brady_rigidity", "axial"] + TREMOR_III + ["NP3GAIT", "NP3FRZGT", "NP3PSTBL"]
 DOMAINS = ["tremor", "brady_rigidity", "axial", "function", "independence", "cognition", "mood", "autonomic",
            "hallucinations", "sleepiness", "rbd", "complications"]
 
@@ -165,9 +179,28 @@ def _motor(raw: Path, ids: set) -> pd.DataFrame:
     return m.drop(columns=["state", "unrecorded", "off_no_exam"])
 
 
-def _ledd(raw: Path, visits: pd.DataFrame) -> pd.DataFrame:
-    """Total and levodopa LEDD active on each visit date (from the LEDD medication log), and the
-    drug classes in use (1 levodopa, 2 other, 3 both) for detecting medication changes."""
+def _in_force(ld: pd.DataFrame, at: pd.DataFrame) -> pd.DataFrame:
+    """The medication records in force at each row of `at` (PATNO, date, and any other columns,
+    which are kept): started on or before the date and not stopped before it. Dates are months, so
+    a record that stops in the date's month gives way to any record of the same participant that
+    starts in that month: a dose change entered as a stop and a new start counts once, at the new
+    dose (audit A4), while a drug stopped without a replacement still counts in its last month."""
+    act = at.merge(ld, on="PATNO", how="inner")
+    act = act[(act.start <= act.date) & (act.stop.isna() | (act.stop >= act.date))]
+    n_start = ld.groupby(["PATNO", "start"]).size().rename("n_start").reset_index().rename(columns={"start": "date"})
+    act = act.merge(n_start, on=["PATNO", "date"], how="left")
+    others_start = act.n_start.fillna(0) - (act.start == act.date).astype(int) > 0
+    return act[~((act.stop == act.date) & others_start)].drop(columns="n_start")
+
+
+def _ledd(raw: Path, visits: pd.DataFrame, half_life_days: float = LDR_HALF_LIFE_DAYS,
+          months: int = 12) -> pd.DataFrame:
+    """Total and levodopa LEDD in force on each visit date (from the LEDD medication log), the drug
+    classes in use (1 levodopa, 2 other, 3 both) for detecting medication changes, and the
+    long-duration exposure: the levodopa dose, times one plus any COMT inhibitor's multiplier, in
+    force at the visit and at each of the `months` months before it, weighted by a slow effect
+    compartment with the given half-life (month m before the visit gets e^(-k m D) - e^(-k (m+1) D),
+    D a month, the oldest month the rest), so a dose held for months gives that dose (D24)."""
     ld = read(raw, "Medical_History", "LEDD_Concomitant_Medication_Log")
     ld = ld[ld.PATNO.isin(set(visits.PATNO))].copy()
     ld["start"], ld["stop"] = mdate(ld.STARTDT), mdate(ld.STOPDT)
@@ -176,8 +209,9 @@ def _ledd(raw: Path, visits: pd.DataFrame) -> pd.DataFrame:
     ld["ld_mult"] = ld.LEDD.astype("string").str.extract(r"LD x ([\d.]+)")[0].astype(float)   # COMT inhibitors
     ld = ld.drop_duplicates(["PATNO", "LEDTRT", "LEDDOSE", "LEDDOSFRQ", "LEDDSTRMG", "STARTDT", "STOPDT"])
     ld = ld.drop(columns=[c for c in ("EVENT_ID", "PAG_NAME", "REC_ID") if c in ld.columns])   # the log's own codes
-    vd = visits[["PATNO", "EVENT_ID", "date"]].merge(ld, on="PATNO", how="inner")
-    act = vd[(vd.start <= vd.date) & (vd.stop.isna() | (vd.stop >= vd.date))].copy()
+    ld = ld[["PATNO", "start", "stop", "ledd_num", "levodopa", "ld_mult"]]
+    vis = visits[["PATNO", "EVENT_ID", "date"]].drop_duplicates()
+    act = _in_force(ld, vis)
     act["lev_ledd"] = act.ledd_num.where(act.levodopa, 0.0)
     act["other"] = ~act.levodopa
     out = act.groupby(["PATNO", "EVENT_ID"]).agg(ledd=("ledd_num", "sum"), ledd_levodopa=("lev_ledd", "sum"),
@@ -185,12 +219,24 @@ def _ledd(raw: Path, visits: pd.DataFrame) -> pd.DataFrame:
                                                 any_other=("other", "any")).reset_index()
     out["ledd"] = out.ledd.fillna(0) + out.comt_mult.fillna(0) * out.ledd_levodopa
     out["classes"] = out.any_lev.astype(int) + 2 * out.any_other.astype(int)
+    # the long-duration exposure
+    k, month = np.log(2) / half_life_days, 30.4375
+    w = np.exp(-k * month * np.arange(months)) - np.exp(-k * month * np.arange(1, months + 1))
+    w[-1] = np.exp(-k * month * (months - 1))
+    back = pd.concat([vis.assign(lag=m, date=vis.date - pd.DateOffset(months=m)) for m in range(months)])
+    hist = _in_force(ld, back)
+    hist = hist.assign(lev=hist.ledd_num.where(hist.levodopa, 0.0))
+    per = hist.groupby(["PATNO", "EVENT_ID", "lag"]).agg(lev=("lev", "sum"), mult=("ld_mult", "max"))
+    per = (per.lev.fillna(0) * (1 + per.mult.fillna(0))).rename("dose").reset_index()
+    per["weighted"] = per.dose * w[per.lag.to_numpy()]
+    expo = per.groupby(["PATNO", "EVENT_ID"]).weighted.sum().rename("exposure").reset_index()
+    out = out.merge(expo, on=["PATNO", "EVENT_ID"], how="outer")
     return out.drop(columns=["comt_mult", "any_lev", "any_other"])
 
 
-def visits(raw: Path, ids: set) -> pd.DataFrame:
+def visits(raw: Path, ids: set, ldr_half_life_days: float = LDR_HALF_LIFE_DAYS) -> pd.DataFrame:
     """One row per participant and event: date, mode, motor state, domain scores, Stebbins items,
-    treatment and LEDD."""
+    treatment, LEDD and the long-duration exposure."""
     v = _motor(raw, ids)
 
     def add(folder, name, cols, fn=None, sc_as_bl=False):
@@ -251,10 +297,15 @@ def visits(raw: Path, ids: set) -> pd.DataFrame:
     v["hallucinations"] = in_range(v.NP1HALL, 0, 4)
     v["complications"] = in_range(v.NP4TOT, 0, 24)
     v["remote"] = v.EVENT_ID.astype(str).str.startswith("R")
-    led = _ledd(raw, v)
+    led = _ledd(raw, v, ldr_half_life_days)
     v = v.merge(led, on=["PATNO", "EVENT_ID"], how="left")
-    v["ledd"] = v.ledd.fillna(0)
-    v["ledd_levodopa"] = v.ledd_levodopa.fillna(0)
+    for c in ("ledd", "ledd_levodopa", "exposure"):
+        v[c] = v[c].fillna(0)
+    # an examination is untreated only if the medication log agrees (audit A6): with a dose in force
+    # and no recorded state, it is "treated, state unrecorded" and its OFF/untreated scores go
+    dosed = v.motor_state.eq("untreated") & (v.ledd > 0)
+    v.loc[dosed, MOTOR_SCORES] = np.nan
+    v.loc[dosed, "motor_state"] = "treated, state unrecorded"
     v["treated"] = ((v.ledd > 0) | (v.pdtrtmnt_any == 1)).astype(int)
     v["complications"] = v.complications.where(v.treated == 1, v.complications.fillna(0))   # zero before treatment
     return v.sort_values(["PATNO", "date"]).reset_index(drop=True)
@@ -323,11 +374,11 @@ def annual_grid(v: pd.DataFrame, anchor: pd.Series, max_year: int = 15) -> pd.Da
 
 # ---------------------------------------------------------------- the study population and the WP0 table
 
-def build(raw: Path = RAW) -> dict:
+def build(raw: Path = RAW, ldr_half_life_days: float = LDR_HALF_LIFE_DAYS) -> dict:
     """Participants, grid and the WP0 visit table (participant-level; keep inside data/)."""
     part = participants(raw)
     ids = set(part.PATNO)
-    v = visits(raw, ids)
+    v = visits(raw, ids, ldr_half_life_days)
     anchor = part.set_index("PATNO").enroll_date
     bl_date = v[v.EVENT_ID == "BL"].groupby("PATNO").date.min()
     anchor = anchor.fillna(bl_date)
@@ -401,10 +452,12 @@ def analysis_panel(part: pd.DataFrame, grid: pd.DataFrame, domains=CORE_DOMAINS,
     """The H-P panel (§2.3, §4, §7.1): TD (0) and PIGD (1) participants of the primary population
     seen at the year-1 landmark, their grid visits from year 1 on, scores on one normal-scores
     transform fitted on the pooled primary population over all visits and groups and then frozen,
-    centred covariates (era, age at onset, sex, disease duration), dose (100 mg LEDD), exposure
-    (levodopa LEDD, 100 mg; provisional for the long-duration term) and the examination state.
-    With motor_on (a D5 option), motor domains of ON-only visits enter with on = 1.
-    Returns (Panel, NormalScores, info); everything here is participant-level except info."""
+    centred covariates (era, age at onset, sex, disease duration), dose (100 mg LEDD), the
+    long-duration exposure (levodopa through the slow effect compartment, 100 mg; D24) and the
+    examination state. With motor_on (a D5 option), motor domains of ON-only visits enter with
+    on = 1. Returns (Panel, NormalScores, info); everything here is participant-level except info,
+    which also holds, per domain, the variance on the frozen scale at year 0 (the reference for
+    converting a reliability into an error variance, audit A5) and at the landmark by phenotype."""
     from .data import Panel
     from .transforms import NormalScores
 
@@ -416,6 +469,7 @@ def analysis_panel(part: pd.DataFrame, grid: pd.DataFrame, domains=CORE_DOMAINS,
             on = g.motor_state.eq("ON only")
             g.loc[on, dname] = g.loc[on, dname + "_on"]
     ns = NormalScores().fit(g[domains].to_numpy(float))
+    var_y0 = np.nanvar(ns.transform(g.loc[g.year == 0, domains].to_numpy(float)), axis=0, ddof=1)
     keep = prim[prim.phenotype.isin(["TD", "PIGD"]) & prim.reached_y1].index
     g = g[g.PATNO.isin(keep) & (g.year >= 1)].sort_values(["PATNO", "year"])
     g = g[g.PATNO.map(g.groupby("PATNO").year.min()) == 1]                      # starts at the landmark
@@ -430,15 +484,18 @@ def analysis_panel(part: pd.DataFrame, grid: pd.DataFrame, domains=CORE_DOMAINS,
         y.append(ns.transform(rows[domains].to_numpy(float)))
         t.append(rows.date_years.to_numpy(float))
         dose.append(rows.ledd.to_numpy(float) / 100.0)
-        expo.append(rows.ledd_levodopa.to_numpy(float) / 100.0)
+        expo.append(rows.exposure.to_numpy(float) / 100.0)
         on.append((rows.motor_state.eq("ON only") & motor_on).to_numpy(float))
         yr.append(rows.year.to_numpy(int))
     group = (prim.loc[ids, "phenotype"] == "PIGD").astype(int).to_numpy()
     panel = Panel(y, t, group, z=z, dose=dose, exposure=expo, on=on, domains=list(domains),
                   meta={"source": "PPMI", "motor_on": motor_on}, year=yr)
+    y1 = np.array([yi[0] for yi in y])
+    var_y1 = {str(k): np.nanvar(y1[group == k], axis=0, ddof=1).tolist() for k in (0, 1)}
     info = {"domains": list(domains), "covariates": ["era (PPMI 2.0)", "age at onset", "male", "duration"],
             "treated_domains": [d for d in domains if d in TREATED_DOMAINS], "motor_on": motor_on,
-            "counts": panel.aggregate_summary()}
+            "counts": panel.aggregate_summary(), "variance_year0": dict(zip(domains, var_y0.tolist())),
+            "variance_landmark_by_group": var_y1}
     return panel, ns, info
 
 
@@ -447,7 +504,9 @@ def screening_retest(v: pd.DataFrame, part: pd.DataFrame, grid: pd.DataFrame,
     """Test-retest reliability from PPMI's own repeat: MDS-UPDRS Parts II and III given at
     screening and at baseline, before treatment (for D28). Pooled over the primary population
     (no phenotype split), on the frozen normal-scores scale fitted to the grid. Returns aggregate
-    ICC(2,1), Pearson r and the implied error variance per domain."""
+    ICC(2,1), Pearson r, the pairs' variance on that scale, and the implied error variance
+    (1 - ICC) times that variance (audit A5: the ICC is a share of the sample's own variance, which
+    in early disease is well below the pooled scale's 1)."""
     from .transforms import NormalScores
 
     part = part.set_index("PATNO") if "PATNO" in part.columns else part
@@ -476,6 +535,8 @@ def screening_retest(v: pd.DataFrame, part: pd.DataFrame, grid: pd.DataFrame,
         msc = n * np.sum((Y.mean(0) - grand) ** 2) / 1
         mse = (np.sum((Y - grand) ** 2) - msr * (n - 1) - msc) / (n - 1)
         icc = (msr - mse) / (msr + mse + 2 * (msc - mse) / n)
+        v_ref = float(0.5 * (np.var(a, ddof=1) + np.var(b, ddof=1)))
         out[dname] = {"n": n, "icc_2_1": float(icc), "pearson_r": float(np.corrcoef(a, b)[0, 1]),
-                      "error_variance": float(1 - icc)}
+                      "sample_variance": v_ref, "error_variance": float((1 - icc) * v_ref),
+                      "error_variance_unscaled": float(1 - icc)}
     return out

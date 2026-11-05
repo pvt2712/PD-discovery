@@ -1,5 +1,14 @@
 ## 7. Run scripts, tests and toy simulations
 
+> **Changed on 5 November 2026** (the PC run, audit A8; [§8](08_audit_findings.md)). This chapter describes commit `a9b577f`. Since then, `run_hp_real.py`:
+> - requires `PYTHONHASHSEED=0`;
+> - keeps the run's settings and the observed fits in its checkpoint and reuses them;
+> - refuses a lower `--n-max`;
+> - has `--time-replicate`;
+> - records the code versions and the fitted parameters.
+>
+> `code_version` moved to `scripts/_common.py`, and `tests/test_revision.py` covers the revision.
+
 The package (`src/pdx/`, chapters 1–6) is driven by a handful of command-line scripts, checked by a plain test runner, and was designed on the evidence of a set of toy simulations. This chapter covers all three:
 - **the run scripts** that are not data builders: the engine gate, the WP0 power gate, the H-P analysis of the PPMI panel, the WP3 qualification, the smoke test, the thread benchmark and the Markdown-to-Word converter (§7.1–§7.25);
 - **the tests** in `tests/`: for each test, what it proves, how, and what it does not cover (§7.26–§7.42);

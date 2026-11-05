@@ -1,7 +1,7 @@
 {
  "status": "PROVISIONAL (D28): recommended values from docs/measurement_reliability.md (literature, 3 Nov 2026); to be confirmed by the statistician and the clinical panel in WP1, after the PPMI screening-baseline retest check (results/wp0/retest_reliability.json)",
  "source": "docs/measurement_reliability.md v0.1",
- "scale": "error variance on the pooled normal-scores scale = 1 - reliability",
+ "scale": "1 - reliability; scripts/build_analysis_panel.py multiplies it by the year-0 variance on the frozen normal-scores scale (audit A5, 5 Nov 2026)",
  "error_variance": {
   "tremor": 0.3,
   "brady_rigidity": 0.2,

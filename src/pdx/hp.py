@@ -7,20 +7,27 @@ null model, repeating the support selection in every replicate, with sequential 
 p-values (Besag & Clifford 1991): replicates are drawn one at a time up to n_max; drawing stops
 once h simulated ratios are at least as large as the observed one, and then p = h / drawn;
 otherwise p = (exceedances + 1) / (n_max + 1). Ties count as at least as large. A replicate that
-fails (raises, or gives a non-finite statistic) counts as at least as large (conservative); a
-replicate whose fits stop short of the convergence criterion is counted and its statistic used.
+fails (raises, gives a non-finite statistic, or has a fit that could not be evaluated) counts as at
+least as large (conservative); a replicate whose fits stop short of the convergence criterion is
+counted and its statistic used. A failed observed fit stops the procedure. If the first
+GUARD_REPLICATES replicates all fail, all give exactly 0, or all have fits that stopped at their
+start, the bootstrap is broken and stops with the reason (the PC run of 4 November 2026 drew 199
+replicates of exactly 0 before anyone could see it).
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 import numpy as np
 
 from .data import Panel
-from .engine.fit import Fit, fit_pair
+from .engine.fit import Fit, fit_pair, remap_support
 from .engine.likelihood import prepare
 from .engine.model import ModelSpec
 from .engine.simulate import simulate_from_fit
+
+GUARD_REPLICATES = 5
 
 
 @dataclass
@@ -39,19 +46,47 @@ class HPResult:
     non_converged: int = 0
     lr_raw: float = 0.0
     extras: list = field(default_factory=list)
+    replicate_info: list = field(default_factory=list)
 
     def summary(self) -> dict:
+        info = [r for r in self.replicate_info if r]
+        evals = [r["null_eval"] + r["free_eval"] for r in info if "null_eval" in r]
         return {"lr": self.lr, "lr_raw": self.lr_raw, "p": self.p, "df": self.df, "n_drawn": self.n_drawn,
                 "n_exceed": self.n_exceed, "stopped_early": self.stopped_early,
                 "failures": self.failures, "replicates_not_converged": self.non_converged,
                 "null_converged": self.null_fit.success, "free_converged": self.free_fit.success,
-                "free_start_logliks": self.free_fit.start_logliks}
+                "free_start_logliks": self.free_fit.start_logliks,
+                "null_fit": self.null_fit.summary(), "free_fit": self.free_fit.summary(),
+                "replicates": {"median_evaluations": float(np.median(evals)) if evals else None,
+                               "warm_started": sum(bool(r.get("warm")) for r in info),
+                               "support_changed": sum(bool(r.get("support_changed")) for r in info),
+                               "failure_reasons": sorted({r["error"] for r in info if r.get("error")})[:5]}}
 
 
 def lr_stat(f0: Fit, f1: Fit) -> float:
     """The likelihood ratio, clamped at 0 (the free fit starts at the null solution, so a negative
-    raw value would only reflect rounding; HPResult keeps the raw value)."""
+    raw value would only reflect rounding; HPResult keeps the raw value). NaN if either fit
+    failed, so a failed replicate counts as a failure."""
+    if f0.failed or f1.failed:
+        return float("nan")
     return max(2.0 * (f1.loglik - f0.loglik), 0.0)
+
+
+def degenerate(outs: list) -> str | None:
+    """Why the first bootstrap replicates look broken, or None: every one failed, every statistic
+    is exactly 0, or every fit stopped at its start. outs are _replicate's tuples."""
+    if not outs:
+        return None
+    infos = [o[4] if len(o) > 4 and o[4] else {} for o in outs]
+    if not any(o[1] for o in outs):
+        reasons = sorted({i.get("error", "unknown") for i in infos})
+        return f"all of the first {len(outs)} replicates failed ({'; '.join(reasons)[:300]})"
+    if all(o[1] and o[0] == 0.0 for o in outs):
+        return f"all of the first {len(outs)} replicates gave a statistic of exactly 0"
+    if all(i.get("null_eval", 99) <= 3 * max(i.get("null_starts", 1), 1) and
+           i.get("free_eval", 99) <= 3 * max(i.get("free_starts", 1), 1) for i in infos):
+        return f"in all of the first {len(outs)} replicates the fits stopped at their start"
+    return None
 
 
 def h_p_df(spec: ModelSpec) -> int:
@@ -63,24 +98,37 @@ def _support(panel: Panel, spec: ModelSpec, support_fn) -> ModelSpec:
     return spec if support_fn is None else spec.with_support(support_fn(panel))
 
 
+def fit_info(g0: Fit, g1: Fit) -> dict:
+    """What a replicate records about its two fits (evaluations, iterations, how they stopped)."""
+    info = {"null_eval": g0.n_eval, "free_eval": g1.n_eval, "null_iter": g0.n_iter, "free_iter": g1.n_iter,
+            "null_starts": len(g0.starts), "free_starts": len(g1.starts),
+            "null_stopped_by": g0.message, "free_stopped_by": g1.message}
+    if g0.failed or g1.failed:
+        info["error"] = (g0 if g0.failed else g1).message
+    return info
+
+
 def _replicate(f0: Fit, panel: Panel, spec: ModelSpec, support_fn, rng, fit_kw, on_replicate=None):
     """One bootstrap replicate: simulate from the fitted null, re-select the support, refit both
-    models. Returns (statistic, ok, converged, extra). A replicate that raises or gives a
-    non-finite statistic is a failure (ok False), counted as at least as large as the observed
-    statistic; non-convergence is recorded but the statistic is used."""
+    models, the null warm-started at the fitted null (written for the replicate's support when that
+    differs). Returns (statistic, ok, converged, extra, info). A replicate that raises, gives a
+    non-finite statistic or has a failed fit is a failure (ok False), counted as at least as large
+    as the observed statistic; non-convergence is recorded but the statistic is used."""
     try:
         sim = simulate_from_fit(f0, panel, rng)
         spec_b = _support(sim, spec, support_fn)
-        warm = f0.x if np.array_equal(spec_b.support, f0.spec.support) else None
+        changed = not np.array_equal(spec_b.support, f0.spec.support)
+        warm = remap_support(f0.x, f0.spec, spec_b, "null") if changed else f0.x
         g0, g1 = fit_pair(sim, spec_b, prep=prepare(sim, spec_b.meas_var, spec_b.n_groups),
                           x0_null=warm, **fit_kw)
         stat = lr_stat(g0, g1)
-        extra = on_replicate(sim, g0, g1) if on_replicate is not None else None
-    except Exception:
-        return np.inf, False, False, None
+        info = {**fit_info(g0, g1), "warm": True, "support_changed": changed}
+        extra = on_replicate(sim, g0, g1) if on_replicate is not None and np.isfinite(stat) else None
+    except Exception as e:
+        return np.inf, False, False, None, {"error": f"{type(e).__name__}: {str(e)[:200]}"}
     if not np.isfinite(stat):
-        return np.inf, False, False, extra
-    return stat, True, bool(g0.success and g1.success), extra
+        return np.inf, False, False, extra, info
+    return stat, True, bool(g0.success and g1.success), extra, info
 
 
 def boot_setup(f0: Fit, panel: Panel, spec: ModelSpec, expert, step1_cfg, fit_kw: dict | None, seed: int) -> dict:
@@ -93,15 +141,20 @@ def boot_setup(f0: Fit, panel: Panel, spec: ModelSpec, expert, step1_cfg, fit_kw
 
 def boot_replicate(shared: dict, i: int) -> tuple:
     """Replicate i with its own random stream, so the bootstrap does not depend on how many
-    replicates run at once: (statistic, ok, converged)."""
+    replicates run at once: (statistic, ok, converged, None, info)."""
     rng = np.random.default_rng([shared["seed"], 3, i])
-    return _replicate(shared["f0"], shared["panel"], shared["spec"], shared["support_fn"], rng, shared["fit_kw"])[:3]
+    t0 = time.time()
+    stat, ok, conv, _, info = _replicate(shared["f0"], shared["panel"], shared["spec"], shared["support_fn"],
+                                         rng, shared["fit_kw"])
+    return stat, ok, conv, None, {**info, "seconds": time.time() - t0}
 
 
 def sequential_p(draw, observed: float, n_max: int = 999, h: int = 20, callback=None, resume: list | None = None) -> dict:
     """Besag-Clifford sequential Monte Carlo p-value. draw() returns (statistic, ok) or a longer
     tuple starting with them; a failed replicate (ok False) counts as at least as large as the
-    observed statistic. resume continues from earlier (statistic, ok) pairs (checkpointing)."""
+    observed statistic. resume continues from earlier (statistic, ok) pairs (checkpointing).
+    callback(drawn, exceed, statistic, ok, rest) is called after each new replicate, rest being the
+    draw's tuple after (statistic, ok)."""
     exceed, drawn, failures, stars = 0, 0, 0, []
     rest = []
     for prev in (resume or []):
@@ -120,7 +173,7 @@ def sequential_p(draw, observed: float, n_max: int = 999, h: int = 20, callback=
         if not ok or stat >= observed:
             exceed += 1
         if callback is not None:
-            callback(drawn, exceed, float(stat), bool(ok))
+            callback(drawn, exceed, float(stat), bool(ok), tuple(out[2:]))
     if exceed >= h:
         return {"p": h / drawn, "n_drawn": drawn, "n_exceed": exceed, "stopped_early": True,
                 "failures": failures, "stars": stars, "rest": rest}
@@ -129,9 +182,13 @@ def sequential_p(draw, observed: float, n_max: int = 999, h: int = 20, callback=
 
 
 def observed_fits(panel: Panel, spec: ModelSpec, support_fn=None, fit_kw: dict | None = None):
-    """Support selection and the two observed fits: (spec with the selected support, null, free)."""
+    """Support selection and the two observed fits: (spec with the selected support, null, free).
+    Raises if either fit failed: there is no statistic to test."""
     spec_s = _support(panel, spec, support_fn)
     f0, f1 = fit_pair(panel, spec_s, **(fit_kw or {}))
+    for name, f in (("speed-only", f0), ("free", f1)):
+        if f.failed:
+            raise RuntimeError(f"the observed {name} fit failed: {f.message}")
     return spec_s, f0, f1
 
 
@@ -141,11 +198,13 @@ def run_hp(panel: Panel, spec: ModelSpec, support_fn=None, n_max: int = 999, h: 
            draw=None) -> HPResult:
     """The full H-P procedure on one dataset (real data, or a single simulated dataset).
 
-    callback(drawn, exceed, statistic, ok) is called after every replicate (for checkpoints);
-    resume continues from saved (statistic, ok) pairs; on_replicate(sim, null_fit, free_fit)
-    returns extra per-replicate output (for example per-link p-values for recalibration);
-    fits reuses the output of observed_fits; draw, if given, supplies the replicates instead
-    (for example boot_replicate run in parallel, in replicate order).
+    callback(drawn, exceed, statistic, ok, rest) is called after every replicate (for
+    checkpoints); resume continues from saved (statistic, ok) pairs; on_replicate(sim, null_fit,
+    free_fit) returns extra per-replicate output (for example per-link p-values for
+    recalibration); fits reuses the output of observed_fits; draw, if given, supplies the
+    replicates instead (for example boot_replicate run in parallel, in replicate order). Unless the
+    run resumes past them, the first GUARD_REPLICATES replicates are checked (degenerate()) and a
+    broken bootstrap stops with RuntimeError.
     """
     rng = rng or np.random.default_rng()
     fit_kw = fit_kw or {}
@@ -153,11 +212,23 @@ def run_hp(panel: Panel, spec: ModelSpec, support_fn=None, n_max: int = 999, h: 
     lr_raw = 2.0 * (f1.loglik - f0.loglik)
     lr = lr_stat(f0, f1)
     draw = draw or (lambda: _replicate(f0, panel, spec, support_fn, rng, fit_kw, on_replicate))
-    seq = sequential_p(draw, lr, n_max, h, callback, resume)
+    first, k = [], min(GUARD_REPLICATES, n_max) - len(resume or [])
+
+    def checked_draw():
+        out = draw()
+        if len(first) < k:
+            first.append(out)
+            reason = degenerate(first) if len(first) == k else None
+            if reason:
+                raise RuntimeError(f"H-P bootstrap stopped: {reason}")
+        return out
+
+    seq = sequential_p(checked_draw, lr, n_max, h, callback, resume)
     non_conv = sum(1 for r in seq["rest"] if r and not r[0])
-    extras = [r[1] for r in seq["rest"] if r and len(r) > 1]
+    extras = [r[1] for r in seq["rest"] if r and len(r) > 1 and r[1] is not None]
+    infos = [r[2] if len(r) > 2 else {} for r in seq["rest"]]
     return HPResult(lr, seq["p"], seq["n_drawn"], seq["n_exceed"], seq["stopped_early"], h_p_df(spec_s),
-                    f0, f1, spec_s.support, seq["stars"], seq["failures"], non_conv, lr_raw, extras)
+                    f0, f1, spec_s.support, seq["stars"], seq["failures"], non_conv, lr_raw, extras, infos)
 
 
 def warp_replicate(panel: Panel, spec: ModelSpec, support_fn=None, rng: np.random.Generator | None = None,
@@ -168,7 +239,7 @@ def warp_replicate(panel: Panel, spec: ModelSpec, support_fn=None, rng: np.rando
     fit_kw = fit_kw or {}
     spec_s = _support(panel, spec, support_fn)
     f0, f1 = fit_pair(panel, spec_s, **fit_kw)
-    lr_b, ok, conv, _ = _replicate(f0, panel, spec, support_fn, rng, fit_kw)
+    lr_b, ok, conv, _, _ = _replicate(f0, panel, spec, support_fn, rng, fit_kw)
     return {"lr": lr_stat(f0, f1), "lr_star": float(lr_b), "replicate_ok": ok, "replicate_converged": conv,
             "converged": bool(f0.success and f1.success), "df": h_p_df(spec_s),
             "null_fit": f0, "free_fit": f1}

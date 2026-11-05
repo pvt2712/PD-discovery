@@ -22,7 +22,9 @@ def _treat(par: dict, spec, dose, expo, on, g):
     fd = dose / (spec.ed50 + dose) if spec.treatment == "emax" else dose
     fe = expo / (spec.ec50_ldr + expo) if spec.treatment == "emax" else expo
     tm = np.where(spec.treat_mask)[0]
-    h[:, tm] = -(par["kappa"][g][None, :] * (fd * on)[:, None] + par["kappa_ldr"][g][None, :] * fe[:, None])
+    state = np.repeat(np.asarray(on, float)[:, None], len(tm), 1)
+    state[:, spec.on_when_treated[tm]] = (np.asarray(dose) > 0)[:, None]      # daily function (D24)
+    h[:, tm] = -(par["kappa"][g][None, :] * fd[:, None] * state + par["kappa_ldr"][g][None, :] * fe[:, None])
     return h
 
 

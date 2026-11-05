@@ -19,7 +19,7 @@ import re
 import _common
 import pandas as pd
 
-from pdx import ppmi, wp0
+from pdx import config, ppmi, wp0
 
 USED = ["Participant_Status", "Demographics", "PD_Diagnosis_History", "Conclusion_of_Study_Participation",
         "MDS-UPDRS_Part_III", "MDS_UPDRS_Part_II__Patient_Questionnaire", "MDS-UPDRS_Part_I",
@@ -53,7 +53,8 @@ def main():
     derived.mkdir(parents=True, exist_ok=True)
     out = _common.RESULTS / "wp0"
     out.mkdir(parents=True, exist_ok=True)
-    tables = ppmi.build(a.raw)
+    treatment = config.load()["treatment"]
+    tables = ppmi.build(a.raw, treatment["ldr_half_life_days"])
     part, grid, w = tables["participants"], tables["grid"], tables["wp0"]
     part.to_parquet(derived / "participants.parquet")
     grid.to_parquet(derived / "grid.parquet")
@@ -70,6 +71,7 @@ def main():
     (out / "retest_reliability.json").write_text(json.dumps(retest, indent=1))
     man = manifest(a.raw, part, w)
     man["approval"] = a.approval
+    man["treatment"] = treatment
     (out / "manifest.json").write_text(json.dumps(man, indent=1))
     print(f"PD cohort {len(part)}; primary population {int(part.primary.sum())}; "
           f"grid rows {len(w)}; wrote data/derived/*.parquet and results/wp0/participant_flow.json, manifest.json")

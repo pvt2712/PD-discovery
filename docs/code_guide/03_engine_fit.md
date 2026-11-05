@@ -1,5 +1,11 @@
 ## 3. The engine II: fitting, standard errors and simulation
 
+> **Changed on 5 November 2026** (audit A1, A3; [§8](08_audit_findings.md)). This chapter describes commit `a9b577f`. Since then:
+> - `fit_model` marks a fit failed when no start can be evaluated, stops a start once it gains less than 0.01 over 100 iterations, and records every start;
+> - `fit_pair` adds a start with the speed spread at 0.6 for the observed fit, and alternates the speed-only fit with the free fit projected onto it (`free_to_null`);
+> - `remap_support` writes a warm start for another support;
+> - `Fit` has `failed`, `n_iter`, `starts`, `summary` and `to_record`/`fit_from_record`.
+
 *Files: [`src/pdx/engine/fit.py`](../../src/pdx/engine/fit.py) (250 lines) and [`src/pdx/engine/simulate.py`](../../src/pdx/engine/simulate.py) (73 lines), at commit `a9b577f`. Protocol: §2.3, §7.1, §7.3.1 and §16.*
 
 ### 3.0 Overview

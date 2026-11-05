@@ -1,6 +1,10 @@
-"""Shared helpers for the run scripts: the import path and the data-use guards."""
+"""Shared helpers for the run scripts: the import path, the data-use guards and what a report
+records about the code and inputs that produced it."""
 from __future__ import annotations
 
+import hashlib
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -43,3 +47,35 @@ def to_json(obj):
     if isinstance(obj, (np.bool_,)):
         return bool(obj)
     return obj
+
+
+def code_version() -> dict:
+    """The code a run uses: the commit, a hash of uncommitted changes to tracked files, and any
+    untracked files (so a report can be tied to a later commit)."""
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout
+    try:
+        diff = git("diff", "HEAD")
+    except OSError:                                    # git not installed (a downloaded copy)
+        return {"commit": None, "uncommitted_diff_sha256": None, "untracked": None}
+    return {"commit": git("rev-parse", "HEAD").strip(),
+            "uncommitted_diff_sha256": hashlib.sha256(diff.encode()).hexdigest() if diff else None,
+            "untracked": git("ls-files", "--others", "--exclude-standard").split()}
+
+
+def file_sha256(path) -> str:
+    """A file's SHA-256, to tie a report or checkpoint to its exact inputs (the hash reveals nothing
+    about the contents)."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def require_hash_seed() -> None:
+    """Step 1's FCI visits sets in hash order, so a run is reproducible only with a fixed hash seed
+    (audit A8); the parallel workers inherit it from the environment."""
+    if os.environ.get("PYTHONHASHSEED") != "0":
+        sys.exit("Refusing: set PYTHONHASHSEED=0 first, so that Step 1's support selection is reproducible "
+                 "(macOS/Linux: export PYTHONHASHSEED=0; Windows PowerShell: $env:PYTHONHASHSEED = \"0\").")

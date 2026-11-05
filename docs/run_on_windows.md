@@ -57,6 +57,7 @@ $env:PYTHONHASHSEED = "0"
   Get-Content C:\work\phenotype-discovery\results\engine_gate\gate_wp0_d10.log -Wait -Tail 20
   ```
 - **If it stops,** run the same three lines again. That covers a closed window, a restart, Ctrl+C or an error. Finished sections, dispersed-start fits, recovery datasets and profiles are kept in `results\engine_gate\gate_wp0_d10.partial.json` and skipped.
+- **After the revision of 5 November 2026 the gate starts afresh.** The model changed: the load no longer moves with speed (D31), there are 20 quadrature nodes (D32), and the fits follow new rules. The gate refuses a checkpoint made under other settings, so first move `results\engine_gate\gate_wp0_d10.partial.json` out of the folder.
 - **The time** depends on the PC's processor and memory speed. The reference checks, the gate dataset's fit, quadrature, identification and the final timing run one at a time; the dispersed starts, profiles and recovery datasets run in parallel. With 5 jobs, expect roughly a day, against the Mac's 1.5–2 days in one process.
 - **When it finishes,** the last log line says whether all automatic checks pass. The report is `results\engine_gate\gate_wp0_d10.json`. Copy it and the log to the Mac's `results/engine_gate/` folder, by USB stick or your own cloud drive; both are synthetic. Then ask Claude to read them, or follow `docs/RUNBOOK.md` §4.
 
@@ -123,7 +124,7 @@ git pull
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
 $env:PYTHONUTF8 = "1"
 $env:PYTHONHASHSEED = "0"
-$AP = "Investigator, 4 November 2026: exploratory run before WP1-WP3"
+$AP = "Investigator, 5 November 2026: rebuild after the revision"
 .\.venv\Scripts\python.exe scripts\build_ppmi_tables.py --raw "D:\PPMI\raw" --approval $AP
 .\.venv\Scripts\python.exe scripts\run_wp0_audit.py --visits data\derived\wp0_visits.parquet --approval $AP
 .\.venv\Scripts\python.exe scripts\build_analysis_panel.py --approval $AP
@@ -134,9 +135,10 @@ $AP = "Investigator, 4 November 2026: exploratory run before WP1-WP3"
 - **The audit** repeats the WP0 feasibility tables in `results\wp0\wp0_audit.json`. H-P doesn't need it, but it allows a comparison with the WP0 report.
 - **The panel build** writes `data\derived\panel_tdpigd.npz` and `panel_spec.json`, the two files H-P reads.
 
-**Check against the Mac.** The Mac used the download of 13 October 2026, whose file names end in `13Oct2026`. From that download:
+**Check against the Mac.** The Mac used the download of 13 October 2026, whose file names end in `13Oct2026`. From that download, after the revision of 5 November:
 - the table build prints `PD cohort 2262; primary population 1127; grid rows 6254`;
-- the panel build prints 706 TD participants with 2,919 transitions, and 177 PIGD participants with 675.
+- the panel build prints 706 TD participants with 2,919 transitions, and 177 PIGD participants with 675. Their share of missing values is 0.124 and 0.146: higher than before the revision, because examinations from treated participants with no recorded state are no longer used;
+- the panel build also prints the error variances, from tremor 0.19 down to daily function 0.139.
 
 A newer PPMI download holds more follow-up, so it gives different numbers. In that case, stop and ask Claude before going on: WP0's figures, and the settings of the synthetic runs, come from the October download.
 
@@ -144,7 +146,9 @@ A newer PPMI download holds more follow-up, so it gives different numbers. In th
 
 H-P needs only two files from the Mac's `phenotype-discovery/data/derived/` folder:
 - `panel_tdpigd.npz` (about 70 KB) holds the TD and PIGD participants' domain scores by visit, with visit times, treatment and four baseline covariates.
-- `panel_spec.json` (about 1 KB) holds the domains, the treated domains and the measurement-error variances.
+- `panel_spec.json` (about 3 KB) holds the domains, the treated domains, the measurement-error variances and how they were derived.
+
+Copy the panel built after the revision of 5 November; an older one has the medication errors the revision fixed.
 
 ```powershell
 cd C:\work\phenotype-discovery
@@ -156,31 +160,56 @@ Then put both files in `data\derived\`.
 
 ### 7c. Run H-P
 
-**The first look** takes about an hour. The Mac ran it on 4 November, so this is only needed for a repeat:
+**After the revision of 5 November 2026.** The run of 4–5 November gave no usable result: every bootstrap fit had stopped at its start, so its p = 0.005 meant nothing (`docs/code_guide/08_audit_findings.md`, "What the PC run showed"). The revision changed the engine, the fits and the data pipeline. So after `git pull`:
+- rebuild the data (7a) or copy the rebuilt panel from the Mac (7b);
+- then time one batch of replicates, and only then start the full run, both below.
+
+The old checkpoint is renamed automatically to `hp_tdpigd_checkpoint.<date-time>.old.json`, because its settings differ. It holds only the zeros, so it can be deleted.
+
+**1. Time one batch first.** This runs the two observed fits, then one batch of bootstrap replicates (six with `--jobs 6`), writes `results\wp4\hp_tdpigd_timing.json` and stops:
 
 ```powershell
+cd C:\work\phenotype-discovery
 $env:PYTHONUTF8 = "1"
 $env:PYTHONHASHSEED = "0"
-.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --first-look --approval "Investigator, 4 November 2026: exploratory run before WP1-WP3"
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 6 --time-replicate --approval "Investigator, 5 November 2026: exploratory run after the revision"
 ```
 
-**The full H-P run, with its bootstrap,** gives H-P's own p-value, the speed intervals and the localisation:
+- **What it does.**
+  - The observed fits now try more starts. The speed-only fit is restarted from the free fit until neither improves.
+  - Each start stops once it gains less than 0.01 in log-likelihood over 100 iterations.
+  - Expect several hours before the first replicate line.
+- **Checks on itself.** The script refuses to run unless `PYTHONHASHSEED` is 0. The bootstrap stops with the reason if its first five replicates all fail, all give 0, or all have fits that never left their start. This is the failure that went unseen on 4–5 November.
+- **What to send.** Copy `hp_tdpigd_timing.json` and `hp_tdpigd.log` to the Mac and ask Claude to read them. The log's last line gives the minutes per replicate and the most the full run can take. Choose `--n-max` from it.
+
+**2. The full run** is the same command without `--time-replicate`:
 
 ```powershell
-$env:PYTHONUTF8 = "1"
-$env:PYTHONHASHSEED = "0"
-.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 5 --approval "Investigator, 4 November 2026: exploratory run before WP1-WP3"
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 6 --approval "Investigator, 5 November 2026: exploratory run after the revision"
 ```
 
-`--jobs 5` runs five bootstrap replicates at once, then five speed samples at once, each in its own process. Every replicate has its own seed, and the stopping rule is applied in replicate order, so the result does not depend on the number of jobs. The first hour, the two observed fits, still runs as one process.
+It continues from the checkpoint. The observed fits and the timed replicates are reused, not recomputed. `--jobs 6` runs six bootstrap replicates at once, then six speed samples, each in its own single-threaded process; section 4's measurement on this PC chose 6. Every replicate has its own seed and the stopping rule is applied in replicate order, so the result does not depend on the number of jobs.
 
-- **Time.**
-  - The observed fits take an hour or more. One at a time, each bootstrap replicate then takes about 30–40 minutes; five at once should finish about 1.5–2 times as many per hour. On the Mac, four jobs gave 1.5 times; section 4 measures it on this PC.
-  - The bootstrap stops once 20 replicates reach the observed statistic. If H-P is far from rejecting, that takes about 40 replicates: a day one at a time, perhaps 12–16 hours with 5 jobs.
-  - If H-P rejects, it runs to the cap: 199 replicates, which gives p-values down to 0.005. That is about 5 days one at a time and roughly 3 days with 5 jobs. Without `--n-max` the cap is the protocol's 999.
-  - The speed bootstrap then adds 100 samples: about 2–3 days one at a time, roughly 1.5 days with 5 jobs.
-- **If it stops,** run the same command again, unchanged and on the same PC. Every replicate and speed sample is kept in `results\wp4\hp_tdpigd_checkpoint.json`. On a restart the two observed fits are recomputed, about an hour, and the saved replicates are kept only if the statistic comes out the same. A different `--threads` setting or another machine can shift it slightly and discard them, and a lower `--n-max` would give a wrong p-value. `--jobs` may change.
-- **Progress** is printed and appended to `results\wp4\hp_tdpigd.log`.
-- **One run at a time.** Run H-P and the engine gate one after the other: each already uses the processor fully with `--jobs`, so running both at once only slows each.
-- **Outputs** are aggregates only: `results\wp4\hp_first_look.json` or `hp_tdpigd.json`, with their logs. Copy them back to the Mac's `results/wp4/` folder.
+- **Time.** The timing run tells us; nothing earlier is reliable.
+  - The bootstrap stops once 20 replicates reach the observed statistic. If H-P is far from rejecting, that takes about 40 replicates. If it rejects, it runs to the cap of 199.
+  - The speed bootstrap then adds 100 samples.
+- **If it stops,** run the same command again.
+  - **What is kept.** The checkpoint `results\wp4\hp_tdpigd_checkpoint.json` holds the run's settings, the observed fits with their parameters, and every replicate and speed sample. They are all reused while the inputs, map, seed and protocol constants are unchanged. `--jobs` and `--threads` may change.
+  - **What is refused.** A lower `--n-max` than the checkpoint's would give a wrong p-value, so the script refuses it.
+- **Progress** is printed and appended to `results\wp4\hp_tdpigd.log`. Each replicate line gives its statistic, its fits' evaluations and its minutes.
+- **One run at a time.** Run H-P and the engine gate one after the other: each already uses the processor fully with `--jobs`.
+- **Outputs** are aggregates only: `results\wp4\hp_tdpigd.json`, the timing file and the log. The report also records:
+  - the settings;
+  - the code versions used;
+  - each fit's starts and how they stopped;
+  - the fitted parameters.
+
+  Copy them back to the Mac's `results/wp4/` folder.
+
+**The first look** (observed fits only, with a χ² p-value) is optional:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --first-look --approval "Investigator, 5 November 2026: exploratory run after the revision"
+```
+
 - **Reading the result.** It is exploratory: the map is provisional, and WP1–WP3 come later. The report says so in its first line.

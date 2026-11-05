@@ -12,6 +12,7 @@ import argparse
 import json
 
 import _common  # noqa: F401
+from pdx import config
 from pdx import qualification as Q
 
 OUT = _common.RESULTS / "qualification"
@@ -26,7 +27,7 @@ def main():
     ap.add_argument("--d", type=int, default=4)
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--no-step1", action="store_true", help="skip support re-selection (faster, not the protocol)")
-    ap.add_argument("--maxiter", type=int, default=3000)
+    ap.add_argument("--maxiter", type=int, default=None, help="iterations at most per start (default: the protocol's)")
     ap.add_argument("--sim-kw", default="{}", help='stress options as JSON, e.g. \'{"spurious": true}\'')
     ap.add_argument("--config-a", default=None, help="configuration key of the protocol run, family A")
     ap.add_argument("--config-b", default=None, help="configuration key of the protocol run, family B")
@@ -34,10 +35,13 @@ def main():
     a = ap.parse_args()
     ds = OUT / "datasets"
     if not a.summarise:
+        cfg = config.load()                    # the primary model: 20 nodes, lam = 0 (D31, D32), the [fit] rules
+        fit_kw = {**cfg["fit"], **({"maxiter": a.maxiter} if a.maxiter else {})}
         tasks = []
         for sc in a.scenarios:
-            tasks += Q.make_tasks(sc, a.datasets, a.n, a.family, d=a.d, step1=not a.no_step1,
-                                  fit_kw={"maxiter": a.maxiter}, sim_kw=json.loads(a.sim_kw))
+            tasks += Q.make_tasks(sc, a.datasets, a.n, a.family, d=a.d, step1=not a.no_step1, fit_kw=fit_kw,
+                                  sim_kw=json.loads(a.sim_kw), n_quad=cfg["engine"]["n_quad"],
+                                  load_on_speed=cfg["engine"]["load_on_speed"])
         Q.run_tasks(tasks, ds, a.jobs)
     rows = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(ds.glob("*.json"))]
     null_rows = [r for r in rows if r["scenario"] in Q.NULL_A]

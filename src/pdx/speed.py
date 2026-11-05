@@ -12,7 +12,8 @@ None of the three needs the minimal-L1 assumption. Intervals come from a partici
 (resampling participants within phenotype): basic intervals, on the log scale for ratios and
 spreads. Sp-3 is bias-corrected with a one-sided lower bound, and is reported only when the
 free fits clearly differ: ||A1 - A0|| above the 95th percentile of its centred bootstrap
-distribution ||(A1 - A0)* - (A1 - A0)||.
+distribution ||(A1 - A0)* - (A1 - A0)||. A sample whose fits fail is a failure; a sample that
+re-selects another support is warm-started at the null fit written for that support.
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ import numpy as np
 
 from . import parallel
 from .data import Panel
-from .engine.fit import Fit, fit_pair
+from .engine.fit import Fit, fit_pair, remap_support
 from .engine.likelihood import prepare
 from .engine.model import ModelSpec
 
@@ -51,7 +52,9 @@ def sp2(null_fit: Fit, panel: Panel) -> dict:
     return {"sigma": sig.tolist(), "ratio_90_10": np.exp(2 * Z90 * sig).tolist(),
             "beta": par["beta"].tolist(), "theta": par["theta"].tolist(),
             "share_explained": between / (between + within) if between + within > 0 else 0.0,
-            "speed_load_corr": (par["lam"] / np.sqrt(par["lam"] ** 2 + par["tau"] ** 2)).tolist()}
+            # empty when the load does not move with speed (lam = 0, D31)
+            "speed_load_corr": ((par["lam"] / np.sqrt(par["lam"] ** 2 + par["tau"] ** 2)).tolist()
+                                if null_fit.layout.has("lam") else [])}
 
 
 def sp3(free_fit: Fit) -> dict:
@@ -91,8 +94,11 @@ def bootstrap_sample(shared: dict, b: int):
     bp, spec, support_fn = shared["panel"].subset(idx), shared["spec"], shared["support_fn"]
     try:
         sb = spec if support_fn is None else spec.with_support(support_fn(bp))
-        warm = shared["null_fit"].x if np.array_equal(sb.support, spec.support) else None
+        nf = shared["null_fit"]
+        warm = nf.x if np.array_equal(sb.support, spec.support) else remap_support(nf.x, nf.spec, sb, "null")
         f0, f1 = fit_pair(bp, sb, x0_null=warm, **shared["fit_kw"])
+        if f0.failed or f1.failed:
+            return None
         e = speed_estimates(f0, f1, bp)
         return _flat(e, f1).tolist(), (f1.params["A"][1] - f1.params["A"][0]).ravel().tolist()
     except Exception:
@@ -122,6 +128,9 @@ def bootstrap_speed(panel: Panel, spec: ModelSpec, null_fit: Fit, free_fit: Fit,
         if on_sample:
             on_sample(done)
     failures = done["failures"]
+    if not rows:
+        return {"estimates": est, "B": B, "B_used": 0, "failures": failures,
+                "note": "every bootstrap sample failed, so there are no intervals"}
     R, Dm = np.array(rows), np.array(diffs)
     a = (1 - level) / 2
     lo = 2 * theta - np.nanquantile(R, 1 - a, axis=0)
@@ -141,8 +150,8 @@ def bootstrap_speed(panel: Panel, spec: ModelSpec, null_fit: Fit, free_fit: Fit,
             "ratio_90_10_ci": np.exp(2 * Z90 * np.exp(np.column_stack([L[1], U[1]]))).tolist(),
             "beta_ci": np.column_stack([L[2], U[2]]).tolist(),
             "theta_ci": np.column_stack([L[3], U[3]]).tolist(),
-            "share_explained_ci": [float(L[4][0]), float(U[4][0])],
-            "speed_load_corr_ci": np.column_stack([L[5], U[5]]).tolist(),
+            "share_explained_ci": np.clip([float(L[4][0]), float(U[4][0])], 0.0, 1.0).tolist(),
+            "speed_load_corr_ci": np.clip(np.column_stack([L[5], U[5]]), -1.0, 1.0).tolist(),
             "sp3_bias_corrected": clip(2 * s3 - np.nanmean(s3_star)),
             "sp3_lower_95": clip(2 * s3 - np.nanquantile(s3_star, 0.95)),
             "sp3_test_statistic": t_obs, "sp3_threshold": float(np.quantile(t_null, 0.95)),

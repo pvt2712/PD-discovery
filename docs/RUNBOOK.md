@@ -126,7 +126,7 @@ caffeinate -i nohup $PY scripts/run_engine_gate.py --wp0 --d 10 --datasets 20 > 
 
 **Progress.** A line for each finished piece is appended to `results/engine_gate/gate_wp0_d10.log` (follow it with `tail -f`). Some pieces take hours.
 
-**Parallel jobs.** `--jobs N` runs N dispersed starts, profiles or recovery datasets at once, each in a single-threaded worker process. Every piece has its own seed. Any N of 2 or more gives identical results; one job, which runs in the main process with its threads, agrees with them to the fits' numerical tolerance (below 1e-4 in a statistic). A restart may use another N. On this Mac, 4 jobs did 1.5 times the work of one 4-thread process (§0). `scripts/bench_threads.py --configs 4x1 5x1 6x1 1x6` finds the best N on another machine.
+**Parallel jobs.** `--jobs N` runs N dispersed starts, profiles or recovery datasets at once, each in a single-threaded worker process. Every piece has its own seed. Any N of 2 or more gives identical results. One job runs in the main process with its threads, so its fits reach the stopping rule at slightly other points: in a test, statistics agreed to 1e-3 and Sp-1's bootstrap bounds to 0.7%. A restart may use another N. On this Mac, 4 jobs did 1.5 times the work of one 4-thread process (§0). `scripts/bench_threads.py --configs 4x1 5x1 6x1 1x6` finds the best N on another machine.
 
 **If it stops,** run the same command again. Finished sections, dispersed-start fits, recovery datasets and profiles are saved in `results/engine_gate/gate_wp0_d10.partial.json` and skipped. The file is removed when the report is written.
 
@@ -136,14 +136,13 @@ caffeinate -i nohup $PY scripts/run_engine_gate.py --wp0 --d 10 --datasets 20 > 
 - The reference and gradient checks pass.
 - **The quadrature check fails its rule.** At WP0's size (816 participants), the speed-only fit's log-likelihood at 12 nodes differs by 0.24 from the 20- and 30-node values, against a limit of 0.01. The 20- and 30-node values agree to within 0.0095.
 - **H-P's statistic barely moves.** It is 29.33, 29.39 and 29.38 at 12, 20 and 30 nodes.
-- **To decide before the freeze:** move to 20 nodes (roughly 1.7 times the compute), or keep 12 and judge agreement by the statistic.
+- **Decided on 5 November 2026 (D32):** 20 nodes, checked against 30 and 40. With D31 (the load no longer moves with speed) and the new fitting rules, the gate starts afresh. It refuses a checkpoint made under other settings, so move `results/engine_gate/*.partial.json` away first.
 
 **It passes (§16) if:**
 - the automatic checks pass: reference agreement, gradients, quadrature, dispersed starts, conditioning with any spreads at zero set aside, profiles, and no negative likelihood ratio;
 - the investigator and statistician accept the recovery bias and coverage.
 
 **Then:**
-- decide the number of quadrature nodes (the first run, above);
 - revise the compute plan (D14) from the gate's `timing` block;
 - decide whether the free model's second start is kept; the gate reports `max_gain_from_free_default_start`;
 - register the protocol and analysis plan on OSF (stage 1, D11).
@@ -183,17 +182,23 @@ caffeinate -i nohup $PY scripts/run_hp_real.py --expert configs/expert_map.json 
 
 **The H-P run:**
 - **Steps.** It runs H-P with its sequential bootstrap (support re-selected in every replicate), then the speed estimates with 200 participant-bootstrap samples, then the anchor-free per-link and per-domain tests with the link classes.
-- **Checkpointing.** H-P's bootstrap and the speed bootstrap save `results/wp4/hp_tdpigd_checkpoint.json` after every replicate or sample. If the run stops, run the same command again: it resumes when the observed statistic is unchanged.
+- **Checks on itself.** The script refuses to run unless `PYTHONHASHSEED=0`. A fit whose start cannot be evaluated is failed, never "converged", and H-P counts its replicate as at least as large as the observed statistic. The bootstrap stops with the reason if its first five replicates all fail, all give exactly 0, or all have fits that never left their start (the PC run of 4–5 November drew 199 zeros unnoticed; protocol Appendix D).
+- **Time it first.** `--time-replicate` runs the observed fits and one batch of replicates (`--jobs` of them, at least five), writes `results/wp4/hp_tdpigd_timing.json` with the full run's longest possible duration, and stops. The same command without the flag then continues from the checkpoint.
+- **Checkpointing.** `results/wp4/hp_tdpigd_checkpoint.json` holds the run's settings, the observed fits with their parameters, and every replicate (with its fits' evaluations and minutes) and speed sample.
 - **Progress** is printed and appended to `results/wp4/hp_tdpigd.log`.
 - **Shorter runs.** `--n-max` caps H-P's bootstrap, for example at 199, which gives p-values down to 0.005. `--speed-bootstrap` sets the number of speed samples. The report records both.
-- **Restarting.** Restart with the same command on the same machine. On a restart the observed fits are recomputed, and the saved replicates are kept only if the statistic matches to 1e-6: a change of `--threads` or of machine can shift it by more and discard them. Do not lower `--n-max` during a run.
-- **Parallel jobs.** `--jobs N` runs N bootstrap replicates, then N speed samples, at once. Each replicate has its own seed, and Besag–Clifford's rule is applied in replicate order, so the p-value does not depend on N (to the fits' numerical tolerance).
-- **Output.** `results/wp4/hp_tdpigd.json`, aggregates only.
-- **Duration.** At 10 domains, the replicates run one at a time, at roughly 30–40 minutes each.
-  - **No clear rejection: a day or two.** H-P stops early once 20 replicates are at least as large as the observed statistic.
-  - **A rejection: 3–4 weeks.** It runs all 999 replicates.
+- **Restarting.** Run the same command again.
+  - **What is reused.** If the settings match, the observed fits and every saved replicate and sample are reused. The settings are the hashes of the panel, its specification and the map, the seed, and the protocol constants that change the fits. `--jobs`, `--threads` and the machine may change.
+  - **Other settings.** A checkpoint from other settings is renamed `*.old.json` and kept, and the run starts afresh.
+  - **`--n-max`.** A lower value than the checkpoint's is refused.
+- **Parallel jobs.** `--jobs N` runs N bootstrap replicates, then N speed samples, at once. Each replicate has its own seed, and Besag–Clifford's rule is applied in replicate order, so the p-value does not depend on N, for any N of 2 or more (one job agrees to the stopping rule's tolerance).
+- **Output.** `results/wp4/hp_tdpigd.json`, aggregates only. It also records the settings, the code versions used, each fit's starts and how each stopped, and the fitted parameters.
+- **Fits.** The speed-only fit starts at the default values and with the speed spread at 0.6. The free fit starts at the null solution and at its own default. The speed-only fit is then restarted from the free fit projected onto it, alternating until neither improves by 0.01. Each start stops when it gains less than 0.01 in log-likelihood over 100 iterations, or at 5,000 iterations (`configs/protocol_v0.5.toml`, `[fit]`). A replicate's speed-only fit starts at the fitted null, written for the support it re-selects.
+- **Duration.** Unknown until `--time-replicate` has run at the real size with 20 nodes. H-P stops early once 20 replicates are at least as large as the observed statistic; a rejection runs to `--n-max`.
 
 Step 1's reported map, the RBD axis and the robustness and sensitivity analyses (§7.10–§7.14) are run with the same modules, as set out in the analysis plan registered at WP2.
+
+**The full exploratory run on the PC (4–5 November 2026) gave no usable result.** Every bootstrap fit stopped at its start, so the 199 replicates were all exactly 0 and the reported p = 0.005 was empty (protocol Appendix D; `docs/code_guide/08_audit_findings.md`, "What the PC run showed"). The revision of 5 November fixed the engine and the data pipeline, so rebuild the tables and the panel before any rerun (`docs/run_on_windows.md`, §7).
 
 **The exploratory first look (4 November 2026).** On the investigator's instruction, H-P was run before WP1–WP3. It used the provisional map in `configs/expert_map_provisional.json`, which was built from the earlier v4.1 expert map and the clinical guidelines; the file gives the reasons for each link. The panel had the default domains and OFF-state motor examinations only.
 
@@ -201,7 +206,7 @@ Step 1's reported map, the RBD axis and the robustness and sensitivity analyses 
 $PY scripts/run_hp_real.py --expert configs/expert_map_provisional.json --first-look --approval "$AP"
 ```
 
-`--first-look` stops after the observed fits, about an hour. It reports:
+`--first-look` stops after the observed fits, which take several hours at 10 domains. It reports:
 - H-P's statistic with a chi-square p-value instead of the bootstrap's;
 - the speed estimates, with a model-based interval for Sp-1;
 - the per-link and per-domain localisation.

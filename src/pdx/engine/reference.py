@@ -58,7 +58,9 @@ def reference_loglik(x: np.ndarray, lay: Layout, panel: Panel, mu1: np.ndarray, 
             dose, expo, on = panel.dose[i], panel.exposure[i], panel.on[i]
             fd = dose / (spec.ed50 + dose) if spec.treatment == "emax" else dose
             fe = expo / (spec.ec50_ldr + expo) if spec.treatment == "emax" else expo
-            hi[:, tm] = -(par["kappa"][g][None, :] * (fd * on)[:, None] + par["kappa_ldr"][g][None, :] * fe[:, None])
+            for c, j in enumerate(tm):
+                in_on = (dose > 0).astype(float) if spec.on_when_treated[j] else on
+                hi[:, j] = -(par["kappa"][g][c] * fd * in_on + par["kappa_ldr"][g][c] * fe)
         # landmark posterior from the observed components only
         o1 = ~np.isnan(yi[0])
         m1, P1 = mu1[g].copy(), S1[g].copy()

@@ -30,6 +30,7 @@ def eval_child(threads: int, evals: int, seed: int, chunk: int | None = None) ->
     import torch
     torch.set_num_threads(threads)
     import run_power_check as R
+    from pdx import config
     from pdx import qualification as Q
     from pdx.engine.fit import start_values
     from pdx.engine.likelihood import prepare, value_and_grad
@@ -40,7 +41,8 @@ def eval_child(threads: int, evals: int, seed: int, chunk: int | None = None) ->
           "visit_probs": {int(k): v for k, v in s["visit_probs"].items()}}
     panel, info = scenarios.generate("S2", 5 * sum(s["target_counts"]), np.random.default_rng(seed), family="A",
                                      d=10, **kw)
-    spec = Q.spec_for(panel, info)
+    eng = config.load()["engine"]                 # the primary model's nodes and load (D31, D32)
+    spec = Q.spec_for(panel, info, n_quad=eng["n_quad"], load_on_speed=eng["load_on_speed"])
     prep = prepare(panel, spec.meas_var, spec.n_groups)
     lay = Layout(spec, "free")
     x = start_values(panel, spec, "free")

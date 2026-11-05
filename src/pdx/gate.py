@@ -8,7 +8,7 @@ The complete engine passes if:
 3. fits converge from dispersed starts, and no likelihood ratio is negative;
 4. profile likelihoods show speed, load, noise and the treatment terms are identified, with
    acceptable Hessian condition numbers;
-5. results agree across 12, 20 and 30 quadrature nodes;
+5. results agree across the chosen number of quadrature nodes and 10 and 20 more (20, 30, 40 since D32);
 6. a whole real-size bootstrap replicate, with support selection and every refit, is timed.
 Every check returns plain numbers; run_gate collects them with pass flags for the JSON report.
 At the real size the gate runs for days, so it saves every finished section, dispersed-start fit,
@@ -179,10 +179,11 @@ def identification(fit: Fit, panel, H: np.ndarray | None = None, boundary: float
 
 
 def recovery_setup(scenario: str, n: int, seed: int, d: int, fit_kw: dict | None, with_intervals: bool,
-                   sim_kw: dict | None) -> dict:
-    """Shared state of the recovery workers (parallel.ordered)."""
+                   sim_kw: dict | None, engine: dict | None = None) -> dict:
+    """Shared state of the recovery workers (parallel.ordered); engine holds the analysis model's
+    settings (quadrature nodes, whether the load moves with speed)."""
     return {"scenario": scenario, "n": n, "seed": seed, "d": d, "fit_kw": fit_kw or {},
-            "with_intervals": with_intervals, "sim_kw": sim_kw or {}}
+            "with_intervals": with_intervals, "sim_kw": sim_kw or {}, "engine": engine or {}}
 
 
 def recovery_dataset(shared: dict, r: int) -> dict:
@@ -190,12 +191,12 @@ def recovery_dataset(shared: dict, r: int) -> dict:
     scenario, with_intervals = shared["scenario"], shared["with_intervals"]
     rng = np.random.default_rng(shared["seed"] + r)
     panel, info = scenarios.generate(scenario, shared["n"], rng, d=shared["d"], **shared["sim_kw"])
-    spec = spec_for(panel, info)
+    spec = spec_for(panel, info, **shared.get("engine", {}))
     t = info["truth"]
     f0, f1 = fit_pair(panel, spec, **shared["fit_kw"])
     gain = f1.start_logliks[1] - f1.start_logliks[0] if len(f1.start_logliks) > 1 else 0.0
     row = {"lr": 2 * (f1.loglik - f0.loglik), "converged": f0.success and f1.success,
-           "default_start_gain": float(gain)}
+           "failed": f0.failed or f1.failed, "default_start_gain": float(gain)}
     if scenario in scenarios.NULL_SCENARIOS:
         lay = f0.layout
         row["error_log_speed"] = float(lay.get(f0.x, "gamma")[0] - np.log(t.speed_ratio))
@@ -216,7 +217,7 @@ def recovery_dataset(shared: dict, r: int) -> dict:
 
 def recovery(scenario: str, n: int, n_datasets: int, seed: int = 0, d: int = 4, fit_kw: dict | None = None,
              with_intervals: bool = True, sim_kw: dict | None = None, rows: list | None = None,
-             on_row=None, jobs: int = 1) -> dict:
+             on_row=None, jobs: int = 1, engine: dict | None = None) -> dict:
     """Recovery of known parameters; LR >= 0 in every dataset.
 
     Under a shared mechanism (S1) the speed-only fit is compared with the truth: the speed ratio,
@@ -228,13 +229,14 @@ def recovery(scenario: str, n: int, n_datasets: int, seed: int = 0, d: int = 4, 
     """
     rows = list(rows or [])
     for row in parallel.ordered(recovery_dataset, range(len(rows), n_datasets), jobs, recovery_setup,
-                                (scenario, n, seed, d, fit_kw, with_intervals, sim_kw)):
+                                (scenario, n, seed, d, fit_kw, with_intervals, sim_kw, engine)):
         rows.append(row)
         if on_row:
             on_row(rows)
     out = {"scenario": scenario, "datasets": n_datasets, "n": n,
            "mean_abs_error_A": float(np.mean(np.abs([r["error_A"] for r in rows]))),
            "min_lr": float(min(r["lr"] for r in rows)), "non_converged": int(sum(not r["converged"] for r in rows)),
+           "failed": int(sum(bool(r.get("failed")) for r in rows)),
            "max_gain_from_free_default_start": float(max(r["default_start_gain"] for r in rows))}
     if "error_log_speed" in rows[0]:
         e = np.array([r["error_log_speed"] for r in rows])
@@ -244,26 +246,27 @@ def recovery(scenario: str, n: int, n_datasets: int, seed: int = 0, d: int = 4, 
     if with_intervals and "covered_log_speed" in rows[0]:
         out["coverage_log_speed"] = float(np.mean([r["covered_log_speed"] for r in rows]))
         out["coverage_log_sigma"] = float(np.mean([r["covered_log_sigma"] for r in rows]))
-    out["pass_no_negative_lr"] = out["min_lr"] > -1e-6
+    out["pass_no_negative_lr"] = out["min_lr"] > -1e-6 and out["failed"] == 0
     return out
 
 
 def time_replicate(n: int, d: int, seed: int = 0, fit_kw: dict | None = None, step1: bool = True,
-                   sim_kw: dict | None = None) -> dict:
+                   sim_kw: dict | None = None, engine: dict | None = None) -> dict:
     """Seconds for the observed fits and one whole bootstrap replicate (support selection and refits)."""
     rng = np.random.default_rng(seed)
     panel, info = scenarios.generate("S1", n, rng, d=d, **(sim_kw or {}))
-    spec = spec_for(panel, info)
+    spec = spec_for(panel, info, **(engine or {}))
     support_fn = make_support_fn(info["support"], Step1Config()) if step1 else None
     t0 = time.time()
     spec_s = spec if support_fn is None else spec.with_support(support_fn(panel))
     t1 = time.time()
     f0, f1 = fit_pair(panel, spec_s, **(fit_kw or {}))
     t2 = time.time()
-    _replicate(f0, panel, spec, support_fn, rng, fit_kw or {})
+    stat, ok, conv, _, info = _replicate(f0, panel, spec, support_fn, rng, fit_kw or {})
     t3 = time.time()
     return {"n": panel.n, "d": d, "support_selection_s": t1 - t0, "observed_fits_s": t2 - t1,
-            "replicate_s": t3 - t2, "null_evaluations": f0.n_eval, "free_evaluations": f1.n_eval}
+            "replicate_s": t3 - t2, "null_evaluations": f0.n_eval, "free_evaluations": f1.n_eval,
+            "replicate_ok": bool(ok), "replicate_statistic": float(stat) if ok else None, "replicate": info}
 
 
 def plain(obj):
@@ -315,15 +318,18 @@ class Checkpoint:
 
 def run_gate(n: int = 1400, d: int = 4, n_datasets: int = 20, seed: int = 2026, quick: bool = False,
              fit_kw: dict | None = None, sim_kw: dict | None = None, checkpoint: Path | None = None,
-             log=None, jobs: int = 1) -> dict:
+             log=None, jobs: int = 1, engine: dict | None = None) -> dict:
     """All checks; quick=True shrinks sizes so the harness itself can be tested in minutes.
 
     sim_kw shapes every real-size dataset (for example WP0's group sizes, visits and missingness;
     target_counts then fix the size, and n is the pool they are drawn from). With a checkpoint path,
     finished work is saved as it goes and skipped when the same run is restarted. log(message), if
     given, reports progress. `jobs` dispersed starts, profiles or recovery datasets run at once,
-    each in a single-threaded worker; the results do not depend on it.
+    each in a single-threaded worker; the results do not depend on it. engine holds the analysis
+    model's settings (n_quad, load_on_speed; protocol_v0.5.toml's [engine]); quadrature is checked
+    at n_quad and 10 and 20 nodes more.
     """
+    engine = dict(engine or {})
     log = log or (lambda message: None)
     sim_kw = dict(sim_kw or {})
     if quick:
@@ -335,16 +341,16 @@ def run_gate(n: int = 1400, d: int = 4, n_datasets: int = 20, seed: int = 2026, 
         else:
             n = min(n, 200)
     ck = Checkpoint(checkpoint, {"n": n, "d": d, "n_datasets": n_datasets, "seed": seed, "quick": quick,
-                                 "sim_kw": sim_kw, "fit_kw": fit_kw or {}}, log)
+                                 "sim_kw": sim_kw, "fit_kw": fit_kw or {}, "engine": engine}, log)
     log(f"gate: {d} domains, {n_datasets} recovery datasets, {torch.get_num_threads()} threads, {jobs} parallel jobs")
     rng = lambda k: np.random.default_rng([seed, k])                     # one stream per section
     small, info = scenarios.generate("S1", 40, rng(0), d=d)
-    spec_small = spec_for(small, info)
+    spec_small = spec_for(small, info, **engine)
     report = {"settings": ck.data["settings"],
               "reference": ck.section("reference", lambda: check_reference(small, spec_small, rng(1))),
               "gradient": ck.section("gradient", lambda: check_gradient(small, spec_small, rng(2)))}
     panel, info = scenarios.generate("S1", n, rng(3), d=d, **sim_kw)
-    spec = spec_for(panel, info)
+    spec = spec_for(panel, info, **engine)
     report["participants"] = int(panel.n)
     f0 = None
     if not all(k in ck.data for k in ("quadrature", "identification", "profiles")):
@@ -354,7 +360,8 @@ def run_gate(n: int = 1400, d: int = 4, n_datasets: int = 20, seed: int = 2026, 
         ck.data["null_fit_x"] = f0.x.tolist()
         ck.save()
         log(f"speed-only fit of the gate dataset ({panel.n} participants): done ({(time.time() - t0) / 60:.0f} min)")
-    report["quadrature"] = ck.section("quadrature", lambda: check_quadrature_lr(f0, panel, fit_kw))
+    k = spec.n_quad
+    report["quadrature"] = ck.section("quadrature", lambda: check_quadrature_lr(f0, panel, fit_kw, (k, k + 10, k + 20)))
     n_starts = 2 if quick else 5
 
     def keep_starts(done):
@@ -389,8 +396,9 @@ def run_gate(n: int = 1400, d: int = 4, n_datasets: int = 20, seed: int = 2026, 
             ck.save()
             log(f"{key}: dataset {len(rows)} of {n_datasets} done")
         report[key] = ck.section(key, lambda: recovery(scenario, n, n_datasets, seed + offset, d, fit_kw, intervals,
-                                                       sim_kw, ck.data.get(key + "_rows"), keep_rows, jobs))
-    report["timing"] = ck.section("timing", lambda: time_replicate(n, d, seed + 300, fit_kw, sim_kw=sim_kw))
+                                                       sim_kw, ck.data.get(key + "_rows"), keep_rows, jobs, engine))
+    report["timing"] = ck.section("timing", lambda: time_replicate(n, d, seed + 300, fit_kw, sim_kw=sim_kw,
+                                                                  engine=engine))
     checks = [report["reference"]["pass"], report["gradient"]["pass"], report["quadrature"]["pass"],
               report["dispersed_starts"]["pass"], report["identification"]["well_conditioned_without_them"],
               all(p["identified"] for p in report["profiles"]),

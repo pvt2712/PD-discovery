@@ -1,5 +1,12 @@
 ## 5. H-P, the speed estimands and localisation
 
+> **Changed on 5 November 2026** (the PC run, audit A1, A3, B5, B11; [§8](08_audit_findings.md)). This chapter describes commit `a9b577f`. Since then:
+> - `lr_stat` is NaN when a fit failed;
+> - `_replicate` and `boot_replicate` return `(statistic, ok, converged, extra, info)` and warm-start for a re-selected support;
+> - `run_hp` stops a degenerate bootstrap after five replicates (`degenerate`);
+> - `sequential_p`'s callback also receives the replicate's details;
+> - the speed bootstrap warm-starts across supports, survives a total failure, clips its correlation and share intervals, and reports no speed–load correlation under λ = 0.
+
 *Files: [`hp.py`](../../src/pdx/hp.py), [`speed.py`](../../src/pdx/speed.py), [`localise.py`](../../src/pdx/localise.py), [`multiplicity.py`](../../src/pdx/multiplicity.py), with the engine's [`model.py`](../../src/pdx/engine/model.py) and [`fit.py`](../../src/pdx/engine/fit.py) for context (they are explained in §2 and §3). Protocol: §2.3–§2.6, §7.1 ("What H-P needs, and what localisation needs"), §7.3, §7.6–§7.8. Tests: `tests/test_hp.py`, `tests/test_localise.py`, `tests/test_multiplicity.py`. Line numbers are those of commit `a9b577f`.*
 
 **Contents.**

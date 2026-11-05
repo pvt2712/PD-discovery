@@ -2,7 +2,14 @@
 
 Start values come from yearly least-squares fits per phenotype mapped to continuous time.
 The free model is started both at its own start and at the null fit written in its parameters,
-so the likelihood ratio of H-P cannot come out negative from a poor local optimum.
+so the likelihood ratio of H-P cannot come out negative from a poor local optimum. The null is
+then restarted from the free fit projected onto it (one speed per phenotype), and the two fits
+alternate until neither improves, so a speed-only fit stuck in the wrong speed basin cannot
+inflate the ratio (audit A3, after the PC run of 4 November 2026).
+
+A fit stops when L-BFGS-B converges, or when the log-likelihood has gained less than `min_gain`
+over the last `window` iterations, or at `maxiter`. A start where the model cannot be evaluated
+is never "converged": the fit is marked failed (audit A1).
 """
 from __future__ import annotations
 
@@ -12,7 +19,7 @@ import numpy as np
 from scipy import linalg, optimize
 
 from ..data import Panel
-from .likelihood import Prepared, prepare, value_and_grad
+from .likelihood import FAILED, Prepared, prepare, value_and_grad
 from .model import Layout, ModelSpec, pack_chol, pack_drift, unpack_numpy
 
 
@@ -22,16 +29,40 @@ class Fit:
     spec: ModelSpec
     layout: Layout
     x: np.ndarray
-    loglik: float
-    success: bool
+    loglik: float                 # -inf if the fit failed
+    success: bool                 # stopped by a convergence rule (L-BFGS-B's or the window), not a limit
     message: str
-    n_eval: int
+    n_eval: int                   # likelihood evaluations over all starts
     params: dict = field(default_factory=dict)
-    start_logliks: list = field(default_factory=list)   # final log-likelihood from each start
+    start_logliks: list = field(default_factory=list)   # final log-likelihood from each start (-inf: failed)
+    n_iter: int = 0               # iterations of the kept start
+    failed: bool = False          # the model could not be evaluated at any start (or at the end)
+    starts: list = field(default_factory=list)          # per start: label, loglik, stopped_by, n_eval, n_iter
 
     @property
     def n_params(self) -> int:
         return self.layout.size
+
+    def summary(self) -> dict:
+        """What a report keeps about the fit (no participant data)."""
+        return {"kind": self.kind, "loglik": self.loglik, "success": self.success, "failed": self.failed,
+                "message": self.message, "n_eval": self.n_eval, "n_iter": self.n_iter, "starts": self.starts}
+
+    def to_record(self) -> dict:
+        """The fit as plain values, parameters included, for a checkpoint or a report."""
+        return {**self.summary(), "x": [float(v) for v in self.x], "start_logliks": list(self.start_logliks)}
+
+
+def fit_from_record(rec: dict, spec: ModelSpec) -> Fit:
+    """A Fit rebuilt from Fit.to_record() for the same model (a checkpoint's observed fits)."""
+    lay = Layout(spec, rec["kind"])
+    x = np.asarray(rec["x"], float)
+    if len(x) != lay.size:
+        raise ValueError(f"the saved {rec['kind']} fit has {len(x)} parameters, the model {lay.size}")
+    ll = -np.inf if rec.get("loglik") is None else float(rec["loglik"])
+    return Fit(rec["kind"], spec, lay, x, ll, bool(rec["success"]), rec["message"], int(rec["n_eval"]),
+               unpack_numpy(x, lay), [(-np.inf if v is None else v) for v in rec.get("start_logliks", [])],
+               int(rec.get("n_iter", 0)), bool(rec.get("failed", False)), list(rec.get("starts", [])))
 
 
 # ---------------------------------------------------------------- start values
@@ -143,16 +174,83 @@ def null_to(x_null: np.ndarray, spec: ModelSpec, kind: str) -> np.ndarray:
     return x
 
 
+def free_to_null(x_free: np.ndarray, spec: ModelSpec, max_ratio: float = 20.0) -> np.ndarray:
+    """The free fit projected onto the null model, as a start for it (the inverse of null_to): the
+    reference phenotype's drift as the shared one, and for each other phenotype the speed that
+    brings its drift closest to it (least squares over the drift entries, kept within
+    [1/max_ratio, max_ratio]), which also rescales its load mean, intercept and noise."""
+    lf, l0 = Layout(spec, "free"), Layout(spec, "null")
+    par = unpack_numpy(x_free, lf)
+    x = np.zeros(l0.size)
+    for name, _ in l0.blocks:
+        if name not in ("A", "gamma") and lf.has(name):
+            l0.put(x, name, lf.get(x_free, name))
+    A0 = par["A"][0]
+    s = np.ones(spec.n_groups)
+    for g in range(1, spec.n_groups):
+        s[g] = float(np.clip(np.sum(par["A"][g] * A0) / max(np.sum(A0 * A0), 1e-12), 1 / max_ratio, max_ratio))
+    l0.put(x, "A", pack_drift(A0, spec))
+    l0.put(x, "gamma", np.log(s[1:]))
+    b, L = par["b"].copy(), lf.get(x_free, "L").copy()
+    for g in range(1, spec.n_groups):
+        b[g] = b[g] / s[g]
+        L[g] = pack_chol(par["Q"][g] / s[g])
+    l0.put(x, "b", b)
+    l0.put(x, "L", L)
+    for name in ("gam_y", "gam_z", "lam"):
+        if l0.has(name):
+            v = lf.get(x_free, name).copy()
+            v[1:] /= s[1:].reshape(-1, *([1] * (v.ndim - 1)))
+            l0.put(x, name, v)
+    lt = lf.get(x_free, "log_tau").copy()
+    lt[1:] -= np.log(s[1:])[:, None]
+    l0.put(x, "log_tau", lt)
+    return x
+
+
+def remap_support(x: np.ndarray, spec_from: ModelSpec, spec_to: ModelSpec, kind: str) -> np.ndarray:
+    """Parameters of a fit on one support written for another (a warm start when a bootstrap
+    sample re-selects a different support): drift entries on both supports are copied, entries
+    new to spec_to start at 0, and everything that does not depend on the support is copied."""
+    la, lb = Layout(spec_from, kind), Layout(spec_to, kind)
+    pos = {tuple(ij): k for k, ij in enumerate(spec_from.sup_idx)}
+    take = np.array([pos.get(tuple(ij), -1) for ij in spec_to.sup_idx])
+    out = np.zeros(lb.size)
+    for name, _ in lb.blocks:
+        if not lb.has(name):
+            continue
+        v = la.get(x, name)
+        if name == "A" or name[0] in "AD" and name[1:].isdigit():
+            w = np.where(take >= 0, v[np.maximum(take, 0)], 0.0)
+            lb.put(out, name, w)
+        else:
+            lb.put(out, name, v)
+    return out
+
+
+def sigma_start(panel: Panel, spec: ModelSpec, kind: str, sigma: float = 0.6) -> np.ndarray:
+    """The default start with the speed spread well away from zero (audit A3: one speed-only
+    start stalled at a spread of zero)."""
+    x = start_values(panel, spec, kind)
+    Layout(spec, kind).put(x, "log_sigma", np.full(spec.n_groups, np.log(sigma)))
+    return x
+
+
 # ---------------------------------------------------------------- fitting
 
 def fit_model(panel: Panel, spec: ModelSpec, kind: str, x0: np.ndarray | None = None,
               extra_starts: list | None = None, prep: Prepared | None = None,
               maxiter: int = 3000, chunk: int | None = None, penalty=None, ftol: float = 1e-10,
-              gtol: float = 1e-5, bounds=None, use_default_start: bool = True, maxcor: int = 50) -> Fit:
+              gtol: float = 1e-5, bounds=None, use_default_start: bool = True, maxcor: int = 50,
+              window: int = 100, min_gain: float = 0.01, labels: list | None = None) -> Fit:
     """Fit one kind of model; the best of the starts by likelihood is kept.
 
     x0 replaces the default start (for example a warm start in a bootstrap replicate);
-    extra_starts are tried as well.
+    extra_starts are tried as well; labels name the starts in Fit.starts. A start where the
+    model cannot be evaluated is skipped and recorded; if no start can be evaluated the fit is
+    failed (loglik -inf, success False), never converged. Each start stops at L-BFGS-B's own
+    convergence, when the log-likelihood gained less than min_gain over the last `window`
+    iterations (window 0 switches this off), or at maxiter.
     """
     lay = Layout(spec, kind)
     prep = prep or prepare(panel, spec.meas_var, spec.n_groups)
@@ -162,37 +260,109 @@ def fit_model(panel: Panel, spec: ModelSpec, kind: str, x0: np.ndarray | None = 
     elif use_default_start:
         starts.append(start_values(panel, spec, kind))
     starts += list(extra_starts or [])
+    labels = list(labels or []) + [f"start {k + 1}" for k in range(len(labels or []), len(starts))]
     count = {"n": 0}
+    errors: list = []
 
     def f(v):
         count["n"] += 1
-        return value_and_grad(v, lay, prep, chunk, penalty)
+        return value_and_grad(v, lay, prep, chunk, penalty, errors)
 
-    best, finals = None, []
-    for s0 in starts:
-        r = optimize.minimize(f, np.asarray(s0, float), jac=True, method="L-BFGS-B", bounds=bounds,
+    best, finals, records = None, [], []
+    for s0, label in zip(starts, labels):
+        s0 = np.asarray(s0, float)
+        n0 = count["n"]
+        v0, _ = f(s0)
+        if v0 >= FAILED:
+            finals.append(-np.inf)
+            records.append({"label": label, "loglik": -np.inf, "stopped_by": "not evaluable at the start",
+                            "error": errors[-1] if errors else "", "n_eval": count["n"] - n0, "n_iter": 0})
+            continue
+        hist, stalled = [], {"flag": False}
+
+        def callback(intermediate_result):
+            hist.append(float(intermediate_result.fun))
+            if window and len(hist) > window and hist[-window - 1] - hist[-1] < min_gain:
+                stalled["flag"] = True
+                raise StopIteration
+
+        r = optimize.minimize(f, s0, jac=True, method="L-BFGS-B", bounds=bounds, callback=callback,
                               options={"maxiter": maxiter, "maxfun": 4 * maxiter, "ftol": ftol, "gtol": gtol,
                                        "maxcor": maxcor})
-        finals.append(-float(r.fun))
-        if best is None or r.fun < best.fun:
-            best = r
-    return Fit(kind, spec, lay, best.x, -float(best.fun), bool(best.success), str(best.message),
-               count["n"], unpack_numpy(best.x, lay), finals)
+        ok = np.isfinite(r.fun) and r.fun < FAILED
+        stopped = ("window" if stalled["flag"] else "converged" if r.success
+                   else "iteration limit" if r.nit >= maxiter or "LIMIT" in str(r.message).upper()
+                   else str(r.message))
+        finals.append(-float(r.fun) if ok else -np.inf)
+        records.append({"label": label, "loglik": finals[-1], "stopped_by": stopped if ok else "not evaluable at the end",
+                        "n_eval": count["n"] - n0, "n_iter": int(r.nit)})
+        if ok and (best is None or r.fun < best[0].fun):
+            best = (r, stopped)
+    if best is None:
+        reason = errors[-1] if errors else "no start could be evaluated"
+        return Fit(kind, spec, lay, np.asarray(starts[0], float), -np.inf, False,
+                   f"failed: the model could not be evaluated ({reason})", count["n"],
+                   unpack_numpy(np.asarray(starts[0], float), lay), finals, 0, True, records)
+    r, stopped = best
+    return Fit(kind, spec, lay, r.x, -float(r.fun), stopped in ("converged", "window"), stopped, count["n"],
+               unpack_numpy(r.x, lay), finals, int(r.nit), False, records)
+
+
+def _merge(old: Fit, new: Fit) -> Fit:
+    """The better of two fits of the same model, with both fits' start records."""
+    best = new if new.loglik > old.loglik else old
+    return Fit(best.kind, best.spec, best.layout, best.x, best.loglik, best.success, best.message,
+               old.n_eval + new.n_eval, best.params, old.start_logliks + new.start_logliks,
+               best.n_iter, old.failed and new.failed, old.starts + new.starts)
 
 
 def fit_pair(panel: Panel, spec: ModelSpec, prep: Prepared | None = None, x0_null: np.ndarray | None = None,
-             own_free_start: bool = True, **kw) -> tuple[Fit, Fit]:
+             own_free_start: bool = True, sigma_starts: bool | None = None, rounds: int = 3, tol: float = 0.01,
+             **kw) -> tuple[Fit, Fit]:
     """The null and free fits of H-P (§7.1).
 
-    The free fit starts at the null solution written in its parameters, so its likelihood is at
-    least the null's and the likelihood ratio is never negative; as the protocol specifies, the
-    free model's own default start is tried as well (own_free_start; the engine gate measures
-    whether it ever changes the ratio).
+    The speed-only (null) fit starts at x0_null if given (a bootstrap replicate's warm start, at the
+    model that generated it), otherwise at the default start and, with sigma_starts (the default
+    when there is no warm start), also with the speed spread away from zero. The free fit starts at
+    the null solution written in its parameters, so its likelihood is at least the null's and the
+    likelihood ratio is never negative, and at its own default start (own_free_start). Then the
+    null is restarted from the free fit projected onto it (free_to_null), and while that improves
+    the null by more than `tol` the free fit is restarted from the new null; at most `rounds`
+    rounds. Observed and replicate fits follow these same rules; the observed fit, which has no
+    warm start, gets the extra default starts instead. If either fit fails, both are returned as
+    they are and the caller decides (H-P counts a failed replicate as at least as large).
     """
     prep = prep or prepare(panel, spec.meas_var, spec.n_groups)
-    f0 = fit_model(panel, spec, "null", x0=x0_null, prep=prep, **kw)
+    sigma_starts = x0_null is None if sigma_starts is None else sigma_starts
+    if x0_null is not None:
+        null_starts, null_labels = [x0_null], ["warm"]
+    else:
+        null_starts, null_labels = [start_values(panel, spec, "null")], ["default"]
+    if sigma_starts:
+        null_starts.append(sigma_start(panel, spec, "null"))
+        null_labels.append("sigma 0.6")
+    f0 = fit_model(panel, spec, "null", x0=null_starts[0], extra_starts=null_starts[1:], prep=prep,
+                   labels=null_labels, **kw)
+    if f0.failed:
+        lay = Layout(spec, "free")
+        x = null_to(f0.x, spec, "free")
+        return f0, Fit("free", spec, lay, x, -np.inf, False, "not fitted: the speed-only fit failed", 0,
+                       unpack_numpy(x, lay), [], 0, True, [])
     f1 = fit_model(panel, spec, "free", x0=null_to(f0.x, spec, "free"), prep=prep,
-                   extra_starts=[start_values(panel, spec, "free")] if own_free_start else None, **kw)
+                   extra_starts=[start_values(panel, spec, "free")] if own_free_start else None,
+                   labels=["null embedding", "own default"], **kw)
+    for k in range(rounds):
+        if f1.failed:
+            break
+        r0 = fit_model(panel, spec, "null", x0=free_to_null(f1.x, spec), prep=prep,
+                       labels=[f"projection of the free fit, round {k + 1}"], **kw)
+        improved = r0.loglik > f0.loglik + tol
+        f0 = _merge(f0, r0)
+        if not improved:
+            break
+        r1 = fit_model(panel, spec, "free", x0=null_to(f0.x, spec, "free"), prep=prep,
+                       labels=[f"null embedding, round {k + 1}"], **kw)
+        f1 = _merge(f1, r1)
     return f0, f1
 
 

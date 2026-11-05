@@ -31,7 +31,8 @@ NULL_A = scenarios.NULL_SCENARIOS
 NULL_B = ("S0", "S1")
 
 
-def spec_for(panel, info, treatment: str = "emax", n_quad: int = 12, era: bool = True) -> ModelSpec:
+def spec_for(panel, info, treatment: str = "emax", n_quad: int = 12, era: bool = True,
+             load_on_speed: bool = True) -> ModelSpec:
     """The analysis model for a simulated dataset: the support the analysis is given (family A:
     the true union, or a stressed one; family B: its map) and the fixed measurement variances."""
     truth = info.get("truth")
@@ -39,7 +40,8 @@ def spec_for(panel, info, treatment: str = "emax", n_quad: int = 12, era: bool =
     tm = truth.treat_mask if truth is not None else np.isin(np.arange(d), [0, 1])
     mv = truth.meas_var if truth is not None else np.full(d, 0.02)
     return ModelSpec(d=d, support=info["support"], p=panel.p, treat_mask=tm, treatment=treatment,
-                     meas_var=mv, n_quad=n_quad, noise_era_col=0 if era and panel.p else None)
+                     meas_var=mv, n_quad=n_quad, noise_era_col=0 if era and panel.p else None,
+                     load_on_speed=load_on_speed)
 
 
 def dataset_task(task: dict) -> dict:
@@ -48,7 +50,8 @@ def dataset_task(task: dict) -> dict:
     rng = np.random.default_rng(task["seed"])
     panel, info = scenarios.generate(task["scenario"], task["n"], rng, family=task.get("family", "A"),
                                      d=task.get("d", 4), **dict(task.get("sim_kw", {})))
-    spec = spec_for(panel, info, task.get("treatment", "emax"))
+    spec = spec_for(panel, info, task.get("treatment", "emax"), task.get("n_quad", 12),
+                    load_on_speed=task.get("load_on_speed", True))
     support_fn = None
     if task.get("step1", True):
         support_fn = make_support_fn(info["support"], Step1Config(**task.get("step1_cfg", {})))

@@ -28,7 +28,7 @@ Design stage.
   - Step 1, the separate-graph reference and four comparators;
   - the simulators, the qualification harness, the engine gate and the WP0 audit.
 
-  Two independent reviews were run, their findings fixed, and the unit tests pass (50 by default, plus 3 slow ones run with `PDX_SLOW=1`). `docs/code_map.md` maps each protocol section to its code and its checks, and lists what is not yet in code.
+  Two independent reviews were run, their findings fixed, and the unit tests pass (66 by default, plus 4 slow ones run with `PDX_SLOW=1`). `docs/code_map.md` maps each protocol section to its code and its checks, and lists what is not yet in code.
 - **Compute is the main open issue.** At ten domains and about 1,450 synthetic participants, one likelihood evaluation takes about 2.5 s on the M4.
   - The speed-only fit needed 223 evaluations (about 9 minutes when run alone).
   - The free fit needed 375 evaluations from the null start (about 16 minutes), and the free model's second start comes on top.
@@ -38,9 +38,18 @@ Design stage.
   - The compute plan (D14) has to be revised once the engine gate has timed the real size.
 - **The engine gate (WP2) started on 4 November 2026.**
   - The Mac finished the reference, gradient and quadrature checks.
-  - At WP0's size, 12 quadrature nodes miss the gate's rule (`docs/RUNBOOK.md`, §4). H-P's statistic barely moves, but the number of nodes must be decided before the freeze.
+  - At WP0's size, 12 quadrature nodes miss the gate's rule (`docs/RUNBOOK.md`, §4). The engine now uses 20 (D32), and the load no longer moves with speed (D31), so the gate starts afresh.
   - The rest of the gate moves to a Windows PC; `docs/run_on_windows.md` covers setup and running there.
 - **An exploratory first look at H-P on PPMI (4 November 2026)** ran on the investigator's instruction, before WP1–WP3. It used the provisional map in `configs/expert_map_provisional.json` and the observed fits only (`scripts/run_hp_real.py --first-look`, `docs/RUNBOOK.md` §6). Its result is exploratory.
+- **The full exploratory run on the investigator's PC (4–5 November 2026) gave no usable result.**
+  - **What went wrong.** Every bootstrap fit stopped at its start, so its p = 0.005 was empty, and neither observed fit converged.
+  - **The revision of 5 November** fixed the engine, the fits and the data pipeline:
+    - batching, failed fits, a guard on the bootstrap, alternating starts and warm starts;
+    - the dose in force, the treatment state, the levodopa exposure and the error variances;
+    - reproducible checkpoints;
+    - D31 and D32.
+  - **Where it is recorded.** Protocol Appendix D, and `docs/code_guide/08_audit_findings.md` under "What the PC run showed".
+  - **Next.** Rebuild the panel, time one batch of replicates (`--time-replicate`), then run.
 - **WP0, the feasibility audit, ran on 3 November 2026**, with the investigator's approval, on the PPMI download of 13 October 2026. `docs/wp0_feasibility_report.md` has the results, aggregate counts only:
   - 1,127 untreated sporadic participants: 804 TD, 209 PIGD, 114 indeterminate;
   - 986 seen at the year-1 landmark (177 PIGD), with 3,727 transitions;

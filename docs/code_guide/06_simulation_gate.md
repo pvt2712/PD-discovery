@@ -1,5 +1,9 @@
 ## 6. Simulators, method qualification and the engine gate
 
+> **Changed on 5 November 2026** (D31, D32; [§8](08_audit_findings.md)). This chapter describes commit `a9b577f`. Since then:
+> - the gate and the qualification take the analysis model's settings from `configs/protocol_v0.5.toml`: 20 nodes, λ = 0, the `[fit]` rules;
+> - the gate checks quadrature at 20, 30 and 40 nodes, counts failed fits, and keeps the timed replicate's outcome.
+
 *This chapter covers `src/pdx/sim/` (`family_a.py`, `scenarios.py`, `family_b.py`), `qualification.py`, `fidelity.py`, `parallel.py` and `gate.py`. They implement protocol §8 (the simulation study of WP3, the third work package) and §16 (the engine gate, run before registration). Line numbers are those of commit `a9b577f`. Every example below runs on synthetic data only; none reads `data/` or `results/`.*
 
 ### 6.0 Overview

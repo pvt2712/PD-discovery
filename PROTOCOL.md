@@ -526,7 +526,7 @@ With about ten core domains in two years and six baseline variables, the Step 1 
 **Model.**
 - **Continuous-time dynamics.** Each participant's true domain levels follow the model of §2.3. The links are A + Δ_g, the load is b_g + ℓ_i, and the noise G_g; all three run at the participant's own speed s_i. The noise covariance is unrestricted, so it carries same-year associations between domains.
 - **Speed.** Log-speed depends on the phenotype, on the pre-specified characteristics z_i, on the year-1 state, and on a random part whose standard deviation σ_g may differ by phenotype.
-- **Load.** A participant-level random load ℓ_i adds to b_g. Given the speed, it enters the transitions linearly, so it is integrated out exactly and a one-dimensional quadrature over speed remains. Its mean shifts with z_i, the year-1 state and the speed's random part, which lets speed and load correlate. These shifts and the load's spread may differ by phenotype; this keeps the speed-only model exactly nested in the free model, because a phenotype's speed rescales its load together with its links.
+- **Load.** A participant-level random load ℓ_i adds to b_g. Given the speed, it enters the transitions linearly, so it is integrated out exactly and a one-dimensional quadrature over speed remains. Its mean shifts with z_i and the year-1 state. In the primary model it does not shift with the speed's random part (D31: on PPMI the fitted speed–load correlation went to about −1 and the load's own spread to zero, so the two could not be told apart); letting it shift, so that speed and load correlate, is a sensitivity analysis (§7.14). These shifts and the load's spread may differ by phenotype; this keeps the speed-only model exactly nested in the free model, because a phenotype's speed rescales its load together with its links.
 - **Yearly transitions.** They follow exactly from the continuous-time model over each actual interval:
   - the transition matrix is the matrix exponential of the links times the interval and the speed;
   - the intercept follows from the same matrix exponential (Van Loan 1978), and the noise covariance from the stationary covariance of the dynamics, which stays accurate over long intervals.
@@ -537,7 +537,7 @@ With about ten core domains in two years and six baseline variables, the Step 1 
 - **Treatment** enters the measurement equation as in §6.1.
 
 **Estimation.**
-- Maximum likelihood, integrating each participant's log-speed by Gauss–Hermite quadrature (12 nodes, checked against 20 and 30 at the engine gate). Given the speed, the participant load, the measurement error and any missing domain values are integrated out by Kalman filtering. This is exact for the linear Gaussian part of the model, and valid under missing at random (§7.11).
+- Maximum likelihood, integrating each participant's log-speed by Gauss–Hermite quadrature (20 nodes, checked against 30 and 40 at the engine gate; D32). Given the speed, the participant load, the measurement error and any missing domain values are integrated out by Kalman filtering. This is exact for the linear Gaussian part of the model, and valid under missing at random (§7.11).
 - The free model is started both at its default and at the speed-only fit, so the likelihood ratio is never negative.
 - Exact gradients and second derivatives are taken through the matrix exponential by automatic differentiation (PyTorch).
 - **What has been validated.**
@@ -833,6 +833,8 @@ Every independence the expert map implies, given a minimal observed separating s
 18. Floor- and ceiling-bound domains kept on the normal-scores scale, instead of the latent-threshold model.
 19. Site effects: a random load for each site, or a bootstrap that resamples sites.
 20. The definition-matched robustness analysis (§7.3.6).
+21. The participant load moving with speed (λ free), as in v0.5 before D31.
+22. Measurement-error variances as 1 − reliability, not scaled to the year-0 variance (before audit A5).
 
 ## 8. Simulation (WP3): method qualification and benchmark
 
@@ -1271,7 +1273,7 @@ Part I's map informs the choice of confounders; it gives no causal licence by it
   - the likelihood agrees between two independent implementations, and gradients agree with finite differences;
   - fits converge from dispersed starts, and no likelihood ratio is negative;
   - profile likelihoods show that speed, load, noise and the treatment terms are identified, with acceptable Hessian condition numbers;
-  - results agree across 12, 20 and 30 quadrature nodes;
+  - results agree across 20, 30 and 40 quadrature nodes (D32);
   - a whole real-size bootstrap replicate, including support selection and every refit, is timed, and the timeline is revised from that cost.
 - Seeds, configurations, costs and failures are logged for every fit.
 - **Compute.** The machine is an Apple M4 with 10 cores and 16 GB.
@@ -1320,6 +1322,8 @@ Part I's map informs the choice of confounders; it gives no causal licence by it
 | D28 | Measurement-error variances | Fixed from published test–retest reliabilities collected in WP1; estimated as sensitivity | Statistician and clinical panel | WP1 |
 | D29 | Where the question of phenotype-specific levodopa escalation goes | Decided on 4 November 2026: experiment 2 (the escalation study, `escalation-study-v2`), with the phenotype as a pre-specified modifier of its Q1 (what drives escalation) and Q5 (for whom escalation differs). This protocol stays on progression | Investigator | Decided 4 November 2026, before any H-P result on PPMI had been seen |
 | D30 | An exploratory look at H-P on PPMI before WP1–WP3 | Run on the investigator's instruction of 4 November 2026 with the provisional, investigator-led map `configs/expert_map_provisional.json` (as D25 allows), the default domains and OFF-state examinations. Its results are exploratory, and a later confirmatory analysis is no longer blind to them (§10) | Investigator | 4 November 2026 |
+| D31 | Whether the participant load moves with speed | Not in the primary model (λ = 0); λ free is a sensitivity analysis. The PC run of 4–5 November 2026 fitted speed–load correlations near −1 in most domains, with the load's own spread at zero | Investigator | Decided 5 November 2026, after an exploratory run whose bootstrap had failed |
+| D32 | Quadrature nodes | 20, checked against 30 and 40 at the engine gate. At the real size 12 nodes missed the gate's own agreement rule (audit A7) | Investigator | 5 November 2026 |
 
 ## 18. Timeline (provisional)
 
@@ -1560,6 +1564,12 @@ Aggregates from `../escalation-discovery` (its PROTOCOL.md §3, §10.1 and §12,
 | Provenance | Entry date, correction history, instrument version | Audit trail and quality flags |
 
 ## Appendix D. Changes from v0.3, v0.4 and v0.4.1
+
+**After v0.5 (5 November 2026): the revision after the PC run.** The exploratory full run of D30 on the investigator's Windows PC (883 participants, 199 bootstrap replicates, 100 speed samples) gave no usable result. Every bootstrap fit had stopped at its start: participants seen only at the landmark filled a whole likelihood batch in the single-threaded workers, the gradient call failed there, and the failure was read as convergence (audit A1). All 199 replicates were exactly 0, so the reported p = 0.005 was empty, and the speed intervals were the start values reflected. Neither observed fit had converged, and the two fits put PIGD on very different time scales. The revision, before any rerun:
+- **Engine.** Single-visit participants leave the likelihood batches (they add exactly 0). A start that cannot be evaluated makes a failed fit, which H-P counts as a failed replicate. The bootstrap stops if its first five replicates all fail, all give 0, or all have fits that never left their start. The speed-only fit is restarted from the free fit projected onto it, alternating until neither improves; the observed fit also starts with the speed spread away from zero. Each start stops when the log-likelihood gains less than 0.01 over 100 iterations. Bootstrap fits start at the fitted null written for the support they re-select.
+- **Decisions.** D31 (λ = 0) and D32 (20 nodes).
+- **Data.** The dose in force on a visit date counts a change within the month once, at the new dose (audit A4: total LEDD was overstated at 325 of 6,254 grid visits). An examination counts as untreated only if the medication log agrees (audit A6: 276 visits' OFF/untreated motor scores were from treated participants with no recorded state, and are no longer used). The levodopa name list is complete. The long-duration exposure passes the levodopa dose through a slow effect compartment (provisional half-life four weeks, D24). Daily function's short-duration term applies whenever the dose is positive, since patients rate it on medication (D24, provisional until WP1). The error variances are (1 − reliability) times the year-0 variance on the frozen scale (audit A5), and their margins below the landmark variances are reported. A domain never observed at the landmark in a phenotype now stops the run (audit A2).
+- **Reproducibility.** The run script requires PYTHONHASHSEED=0. It keeps its settings, the observed fits and every replicate in the checkpoint, reuses them on a restart with the same settings, and refuses a lower `--n-max` (audit A8). `--time-replicate` times one batch of replicates before the full run.
 
 **After v0.5 (4 November 2026): two decisions, recorded before any H-P result on PPMI had been seen.**
 - **D29, phenotype and levodopa escalation.** Whether TD and PIGD reach levodopa dose escalation by different routes is a question about treatment decisions, with confounding by indication. It moves to experiment 2 (the escalation study), as a pre-specified phenotype modifier of its Q1 and Q5. This protocol keeps progression as its question.

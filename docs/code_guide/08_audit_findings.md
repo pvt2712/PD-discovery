@@ -1,6 +1,6 @@
 # 8. What the readers found: a ranked list for the audit
 
-*Collected on 4 November 2026 from the "Notes for the author" at the end of chapters 1–7. The line numbers are those of commit `a9b577f`. Each item was found by reading the code, and most were also reproduced with a small synthetic script; the chapters give the details and the scripts are in `docs/guide_examples/`. Nothing has been changed in the code yet: the fixes below are proposals for the investigator to decide on.*
+*Collected on 4 November 2026 from the "Notes for the author" at the end of chapters 1–7. The line numbers are those of commit `a9b577f`. Each item was found by reading the code, and most were also reproduced with a small synthetic script; the chapters give the details and the scripts are in `docs/guide_examples/`. The revision of 5 November 2026 fixed group A and a few B items; see "Status after the revision" at the end. The chapters' line anchors still refer to `a9b577f`, so for the files the revision changed they are approximate.*
 
 The items are ranked by how much they could change a result:
 - **A** could change H-P's statistic or its validity, so these should be fixed before any result is reported;
@@ -82,3 +82,40 @@ Two readers found item A1 independently.
 ## What this means for the exploratory run
 
 The first look and the full PC run use the code as it stands. Items A3 to A6 can move H-P's statistic, and A1 and A2 can make a fit fail silently. **Treat the current PC result as a preliminary pass.** After the fixes, the panel is rebuilt (A4, A6) and H-P is rerun.
+
+## What the PC run showed (5 November 2026)
+
+The full exploratory run on the investigator's Windows PC (`--n-max 199 --speed-bootstrap 100 --jobs 6`; 883 participants, 706 TD and 177 PIGD) produced a report, but no usable result.
+
+**A0, a new item.** Every bootstrap fit stopped at its start.
+- **The cause.** The likelihood is summed in batches of participants sorted by number of visits. At least 32 participants are seen only at the landmark. In the single-threaded workers, whose batches hold 32, one batch therefore held only such participants. `participant_loglik` returns a constant for a batch with no transition, and the gradient call then raises an error. `value_and_grad` turned that into 1e10 with a zero gradient (A1), and L-BFGS-B read the zero gradient as convergence. The observed fits ran in the main process, whose batches hold 128, so they were not affected.
+- **What it did.** All 199 replicates were exactly 0, so the reported p = 0.005 was empty. In the speed bootstrap, 98 of the 100 samples returned the default start values and 2 the observed estimates. Its "intervals" were those values reflected about the estimates: Sp-1's interval excluded the estimate, and the correlation intervals reached −2.
+- **Why the tests missed it.** The simulators keep only participants with two or more visits.
+- **Reproduced** on the Mac's copy of the panel: batches of 128 work, and batches of 32 fail with "element 0 of tensors does not require grad".
+
+**What else the observed fits showed** (exploratory, and partly an artefact of the items above; the estimates themselves stay in the local `results/` folder, outside the public repository, until PPMI's publication rules have been followed):
+- **Neither fit met the convergence test.** The observed fits ran for 10.6 hours, most likely to the iteration cap, and the free fit's two starts ended far apart.
+- **The two fits put PIGD on very different time scales.** The speed-only fit made PIGD faster than TD. The free fit's PIGD drift was a small fraction of TD's, and one scale factor explained most of the difference (Sp-3). So the speed-only fit may have been stuck in the wrong speed basin (A3), which would inflate the statistic.
+- **The load collapsed onto the speed.** The speed–load correlation was close to −1 in about half of the domains, with the load's own spread at zero (hence D31).
+- **The localisation was unusable.** Its largest deltas were own rates, led by tremor's. It named no link or domain, as B2 predicts, and its speed contradicted Sp-1.
+- **Step 1 was unstable.** It re-selected a different support in 98 of the 100 speed-bootstrap samples, so the warm start, which was used only when the support was identical, almost never applied.
+
+## Status after the revision (5 November 2026)
+
+| # | Status |
+|---|---|
+| A0 | Fixed. `chunks` leaves out participants seen only at the landmark, who add exactly 0, and `value_and_grad` skips a batch with nothing to differentiate. Tests use batches of 32 and 128, and run a two-worker bootstrap on a panel with more single-visit participants than a batch. |
+| A1 | Fixed. A start that cannot be evaluated is skipped and recorded. A fit with no evaluable start is failed: log-likelihood −inf, never converged, with the reason given. `lr_stat` is NaN for a failed fit, so H-P counts the replicate as at least as large, and a failed observed fit stops the run. The first five replicates are checked by `hp.degenerate`. The gate counts failed fits. |
+| A2 | Fixed. `prepare` stops with the phenotype and domain named. |
+| A3 | Fixed. The speed-only fit is restarted from the free fit projected onto it (`free_to_null`), alternating until neither improves by 0.01. The observed speed-only fit also starts with the speed spread at 0.6. Each start stops when it gains less than 0.01 in log-likelihood over 100 iterations, with a cap of 5,000. Replicates follow the same rules from a warm start, written for the support they re-select (`remap_support`). Every fit records its starts and how each stopped. |
+| A4 | Fixed. A record that stops in the visit's month gives way to any record starting that month. On the October download, total LEDD was overstated at 325 of 6,254 grid visits, and the share of transitions with a medication change falls from 0.578 to 0.554. |
+| A5 | Fixed, provisionally. Error variance = (1 − reliability) × the year-0 variance on the frozen scale, which stands in for the reliability samples' variance (D28 to be confirmed in WP1). Each landmark variance's margin over its error variance is reported, and none is below 0.1. PPMI's own retest now reports the sample variance and the scaled error variance. |
+| A6 | Fixed, with daily function provisional. An examination with a dose in force and no recorded state is "treated, state unrecorded" and not used (276 visits on the October download). The levodopa names are completed. The exposure is the levodopa dose (times one plus the COMT multiplier) through a slow effect compartment with a four-week half-life (provisional, D24). Daily function's short-duration term applies whenever the dose is positive (`on_when_treated`, provisional until WP1). |
+| A7 | Decided: 20 nodes (D32), checked at the gate against 30 and 40. |
+| A8 | Fixed. The run script requires `PYTHONHASHSEED=0`. The checkpoint stores the settings (input hashes, map, seed, protocol constants), the observed fits with their parameters, and every replicate's details, and reuses them only for the same settings. A lower `--n-max` is refused. Reports record the code versions. |
+| B5 | Partly. `bootstrap_speed` reports "every sample failed" instead of crashing; `per_link_tests` is unchanged. |
+| B7 | Partly. `time_replicate` keeps the replicate's outcome. |
+| B11 | Partly. The share-explained and speed–load correlation intervals are clipped to their ranges. |
+
+Also decided on 5 November: **D31**, the load does not move with speed in the primary model (λ = 0), and λ free is a sensitivity analysis.
+

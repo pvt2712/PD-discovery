@@ -1,5 +1,11 @@
 ## 2. The engine I: model and likelihood
 
+> **Changed on 5 November 2026** (the PC run, audit A0–A2, D31; [§8](08_audit_findings.md)). This chapter describes commit `a9b577f`. Since then:
+> - `chunks` leaves out participants seen only at the landmark;
+> - `value_and_grad` skips a batch with nothing to differentiate and records why an evaluation failed;
+> - `prepare` stops when a domain is never seen at the landmark in a phenotype;
+> - `ModelSpec` has `load_on_speed` (λ = 0 when False, the primary model) and `on_when_treated`, the domains whose short-duration term follows the dose and not the examination state (daily function, D24). `treat_effect`, the simulator and the reference implementation all use them.
+
 *Chapter 2 of the guide (the map is [§0](00_map.md)). Written on 4 November 2026 against commit `a9b577f`; the line numbers in the links are that commit's.*
 
 This chapter reads the five files that turn a vector of parameters and a panel of visits into one number, the log-likelihood of the continuous-time model of protocol §2.3 and §7.1.

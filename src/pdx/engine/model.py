@@ -10,7 +10,10 @@ and is observed at the visits as Y = X + h + e, e ~ N(0, diag(meas_var)), where 
 treatment terms. The noise covariance is exp(omega * era_i) G_g G_g' when an era column is named
 (protocol §2.3: era also shifts the noise). Everything about the load is phenotype-specific, so
 the speed-only model is exactly nested in the free model (a phenotype's speed rescales its load
-along with its drift, load mean and noise). Three kinds of model share this layout:
+along with its drift, load mean and noise). With load_on_speed False the load does not move with
+speed (lam_g = 0; decision D31, the primary model since 5 November 2026: on PPMI the fitted
+speed-load correlation went to about -1, the load's own spread to zero). Three kinds of model
+share this layout:
 
 - "null": one mechanism A for all phenotypes, run at the phenotype's speed exp(gamma_g) (H-P's null);
 - "free": a free drift for every phenotype (H-P's alternative; the phenotype speed is absorbed);
@@ -45,15 +48,21 @@ class ModelSpec:
     n_groups: int = 2
     load_on_z: bool = True
     load_on_y1: bool = True
+    load_on_speed: bool = True         # lam_g, how the load moves with speed (False: lam = 0, D31)
     speed_on_y1: bool = True
     negative_own_rates: bool = True
     noise_era_col: int | None = None   # column of z holding era, if era shifts the noise
+    # treated domains whose short-duration effect applies whenever the dose is positive, whatever
+    # the examination state: daily function, which patients rate as their usual, medicated days (D24)
+    on_when_treated: np.ndarray | None = None
 
     def __post_init__(self):
         self.support = np.asarray(self.support, bool).copy()
         np.fill_diagonal(self.support, True)
         self.treat_mask = np.zeros(self.d, bool) if self.treat_mask is None else np.asarray(self.treat_mask, bool)
         self.meas_var = np.zeros(self.d) if self.meas_var is None else np.asarray(self.meas_var, float)
+        self.on_when_treated = (np.zeros(self.d, bool) if self.on_when_treated is None
+                                else np.asarray(self.on_when_treated, bool) & self.treat_mask)
         if self.treatment != "none" and not self.treat_mask.any():
             self.treatment = "none"
 
@@ -99,7 +108,7 @@ class Layout:
                    ("b", (G, d)), ("L", (G, tri)),
                    ("gam_y", (G, d) if spec.load_on_y1 else (0,)),
                    ("gam_z", (G, d, p) if (spec.load_on_z and p > 0) else (0,)),
-                   ("lam", (G, d)), ("log_tau", (G, d)),
+                   ("lam", (G, d) if spec.load_on_speed else (0,)), ("log_tau", (G, d)),
                    ("omega", (1,) if spec.noise_era_col is not None else (0,))]
         if nt:
             blocks += [("kappa", (G, nt)), ("kappa_ldr", (G, nt))]
@@ -175,7 +184,10 @@ def noise_cov(x: torch.Tensor, lay: Layout) -> torch.Tensor:
 
 def treat_effect(x: torch.Tensor, lay: Layout, dose: torch.Tensor, expo: torch.Tensor,
                  on: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
-    """(n, T, d) treatment terms h added to the observed scores (negative means improvement)."""
+    """(n, T, d) treatment terms h added to the observed scores (negative means improvement).
+
+    The short-duration term needs the ON state: the examination state `on` for the motor
+    domains, and a positive dose for the domains in spec.on_when_treated (D24)."""
     spec = lay.spec
     n, T = dose.shape
     h = torch.zeros(n, T, spec.d, dtype=x.dtype)
@@ -188,7 +200,11 @@ def treat_effect(x: torch.Tensor, lay: Layout, dose: torch.Tensor, expo: torch.T
         fe = expo / (spec.ec50_ldr + expo)
     else:
         fd, fe = dose, expo
-    eff = -(kap[:, None, :] * (fd * on)[:, :, None] + kapl[:, None, :] * fe[:, :, None])
+    state = on[:, :, None].expand(n, T, spec.n_treat)
+    when_treated = torch.as_tensor(spec.on_when_treated[spec.treat_mask])
+    if when_treated.any():
+        state = torch.where(when_treated[None, None, :], (dose > 0).to(x.dtype)[:, :, None], state)
+    eff = -(kap[:, None, :] * fd[:, :, None] * state + kapl[:, None, :] * fe[:, :, None])
     tm = torch.as_tensor(np.where(spec.treat_mask)[0])
     return h.index_copy(2, tm, eff)
 
@@ -199,9 +215,9 @@ def unpack_numpy(x: np.ndarray, lay: Layout) -> dict:
     out = {"A": drifts(xt, lay).numpy(), "log_speed": log_speeds(xt, lay).numpy(),
            "Q": noise_cov(xt, lay).numpy(), "b": lay.get(xt, "b").numpy(),
            "sigma": np.exp(lay.get(xt, "log_sigma").numpy()),
-           "beta": lay.get(xt, "beta").numpy(), "lam": lay.get(xt, "lam").numpy(),
-           "tau": np.exp(lay.get(xt, "log_tau").numpy())}
+           "beta": lay.get(xt, "beta").numpy(), "tau": np.exp(lay.get(xt, "log_tau").numpy())}
     G, d, p = lay.spec.n_groups, lay.spec.d, lay.spec.p
+    out["lam"] = lay.get(xt, "lam").numpy() if lay.has("lam") else np.zeros((G, d))
     out["theta"] = lay.get(xt, "theta").numpy() if lay.has("theta") else np.zeros(d)
     out["gam_y"] = lay.get(xt, "gam_y").numpy() if lay.has("gam_y") else np.zeros((G, d))
     out["gam_z"] = lay.get(xt, "gam_z").numpy() if lay.has("gam_z") else np.zeros((G, d, p))

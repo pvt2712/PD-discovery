@@ -5,8 +5,9 @@ single-threaded jobs finish more work per hour than one process with many thread
 
 Every piece carries its own seed, so the results do not depend on how many jobs run them: any
 number of workers gives identical results. One job runs in the calling process with its threads,
-which changes the order of summation, so its fits agree with the workers' to their numerical
-tolerance (below 1e-4 in a test statistic), not bit for bit.
+which changes the order of summation, so its fits reach the stopping rule (a gain under 0.01 over
+100 iterations) at slightly other points: in a test, H-P's statistic agreed to 1e-3 and Sp-1's
+bootstrap bounds to 0.7% (0.03% with the rule switched off), not bit for bit.
 """
 from __future__ import annotations
 

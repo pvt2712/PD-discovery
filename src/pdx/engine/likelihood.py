@@ -81,6 +81,11 @@ def prepare(panel: Panel, meas_var: np.ndarray, n_groups: int | None = None) -> 
     S1 = np.zeros((G, d, d))
     for g in range(G):
         rows = y1[panel.group == g]
+        never = np.where(~np.isfinite(rows).any(0))[0] if len(rows) else np.array([], int)
+        if len(never):
+            names = getattr(panel, "domains", None) or [f"domain {j}" for j in range(d)]
+            raise ValueError(f"phenotype {g}: {', '.join(names[j] for j in never)} never observed at the "
+                             f"landmark, so its landmark prior is undefined; drop the domain or merge groups")
         mu1[g] = np.nanmean(rows, 0) if len(rows) else 0.0
         cov = np.ma.cov(np.ma.masked_invalid(rows), rowvar=False).filled(0.0) if len(rows) > 2 else np.eye(d)
         S1[g] = _pd(np.atleast_2d(cov) - np.diag(meas_var))
@@ -101,10 +106,14 @@ def default_chunk() -> int:
 
 
 def chunks(prep: Prepared, size: int | None = None) -> list:
-    """Participant index sets of at most `size` (default_chunk() if not given), grouped by number of visits."""
+    """Participant index sets of at most `size` (default_chunk() if not given), grouped by number of
+    visits. Participants seen only at the landmark are left out: their likelihood is exactly 1 (the
+    quadrature weights sum to one), and a batch holding only them would have nothing to
+    differentiate. They still inform the landmark prior and the centring in prepare()."""
     size = size or default_chunk()
     order = torch.argsort(prep.Ti, stable=True)
-    return [order[a:a + size] for a in range(0, prep.N, size)]
+    order = order[prep.Ti[order] >= 2]
+    return [order[a:a + size] for a in range(0, len(order), size)]
 
 
 def _landmark_update(mu, S, y, o, h, R):
@@ -143,7 +152,7 @@ def participant_loglik(x: torch.Tensor, lay: Layout, prep: Prepared, idx: torch.
         mu_l = mu_l + y1c * lay.get(x, "gam_y")[g]
     if lay.has("gam_z"):
         mu_l = mu_l + torch.einsum("np,ndp->nd", z, lay.get(x, "gam_z")[g])
-    lam = lay.get(x, "lam")[g]                                                   # (n, d)
+    lam = lay.get(x, "lam")[g] if lay.has("lam") else torch.zeros(n, d, dtype=x.dtype)   # (n, d)
     tau2 = torch.exp(2 * lay.get(x, "log_tau"))[g]                               # (n, d)
     R = prep.R
     Y, O = prep.Y[idx], prep.O[idx]
@@ -202,30 +211,41 @@ def loglik(x: torch.Tensor, lay: Layout, prep: Prepared, chunk: int | None = Non
     return tot
 
 
+FAILED = 1e10      # the objective value that marks a point where the model cannot be evaluated
+
+
 def value_and_grad(xnp: np.ndarray, lay: Layout, prep: Prepared, chunk: int | None = None,
-                   penalty=None) -> tuple[float, np.ndarray]:
+                   penalty=None, errors: list | None = None) -> tuple[float, np.ndarray]:
     """Negative log-likelihood and its gradient, chunk by chunk to bound memory.
 
     penalty(x) may add a differentiable term (used by the penalised localisation fits).
-    Returns (1e10, 0) if the model cannot be evaluated at xnp.
+    Returns (FAILED, 0) if the model cannot be evaluated at xnp, and appends the reason to
+    `errors` if given. The optimiser's line search backs away from such trial points; a fit whose
+    start or end is such a point is marked failed by fit_model, never converged.
     """
+    def fail(reason: str):
+        if errors is not None:
+            errors.append(reason)
+        return FAILED, np.zeros(len(xnp))
+
     x = torch.tensor(np.asarray(xnp, float), requires_grad=True)
     total, grad = 0.0, np.zeros(len(xnp))
     try:
         for idx in chunks(prep, chunk):
             val = -participant_loglik(x, lay, prep, idx).sum()
             if not torch.isfinite(val):
-                return 1e10, np.zeros(len(xnp))
-            gr, = torch.autograd.grad(val, x)
+                return fail("non-finite log-likelihood")
             total += float(val.detach())
-            grad += gr.numpy()
+            if val.requires_grad:              # a batch that does not depend on x adds no gradient
+                gr, = torch.autograd.grad(val, x)
+                grad += gr.numpy()
         if penalty is not None:
             val = penalty(x)
             gr, = torch.autograd.grad(val, x)
             total += float(val.detach())
             grad += gr.numpy()
-    except (RuntimeError, ValueError, ArithmeticError):
-        return 1e10, np.zeros(len(xnp))
+    except (RuntimeError, ValueError, ArithmeticError) as e:
+        return fail(f"{type(e).__name__}: {str(e)[:200]}")
     if not np.all(np.isfinite(grad)):
-        return 1e10, np.zeros(len(xnp))
+        return fail("non-finite gradient")
     return total, grad
