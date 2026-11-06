@@ -60,7 +60,11 @@ def _pd(S: np.ndarray, floor: float = 1e-3) -> np.ndarray:
     return (V * np.maximum(w, floor)) @ V.T
 
 
-def prepare(panel: Panel, meas_var: np.ndarray, n_groups: int | None = None) -> Prepared:
+def prepare(panel: Panel, meas_var: np.ndarray, n_groups: int | None = None, landmark=None) -> Prepared:
+    """The panel as padded tensors. The landmark prior (mu1, S1) and the centring of the landmark
+    scores come from the panel itself, unless `landmark` = (mu1 (G, d), S1 (G, d, d), centre (d,))
+    gives those of another panel: the one a fit was made on, when that fit scores other or
+    truncated participants (Paper 2's speed at the decision, pdx.speed_at)."""
     N, d = panel.n, panel.d
     G = n_groups or panel.n_groups
     T = max(len(ti) for ti in panel.t)
@@ -77,20 +81,25 @@ def prepare(panel: Panel, meas_var: np.ndarray, n_groups: int | None = None) -> 
             dt[i, :Ti - 1] = np.diff(panel.t[i])
         dose[i, :Ti], expo[i, :Ti], on[i, :Ti] = panel.dose[i], panel.exposure[i], panel.on[i]
     y1 = np.array([panel.y[i][0] for i in range(N)])
-    mu1 = np.zeros((G, d))
-    S1 = np.zeros((G, d, d))
-    for g in range(G):
-        rows = y1[panel.group == g]
-        never = np.where(~np.isfinite(rows).any(0))[0] if len(rows) else np.array([], int)
-        if len(never):
-            names = getattr(panel, "domains", None) or [f"domain {j}" for j in range(d)]
-            raise ValueError(f"phenotype {g}: {', '.join(names[j] for j in never)} never observed at the "
-                             f"landmark, so its landmark prior is undefined; drop the domain or merge groups")
-        mu1[g] = np.nanmean(rows, 0) if len(rows) else 0.0
-        cov = np.ma.cov(np.ma.masked_invalid(rows), rowvar=False).filled(0.0) if len(rows) > 2 else np.eye(d)
-        S1[g] = _pd(np.atleast_2d(cov) - np.diag(meas_var))
+    if landmark is not None:
+        mu1, S1, centre = (np.asarray(a, float) for a in landmark)
+        if mu1.shape != (G, d) or S1.shape != (G, d, d) or centre.shape != (d,):
+            raise ValueError(f"landmark: expected shapes ({G}, {d}), ({G}, {d}, {d}) and ({d},)")
+    else:
+        mu1 = np.zeros((G, d))
+        S1 = np.zeros((G, d, d))
+        for g in range(G):
+            rows = y1[panel.group == g]
+            never = np.where(~np.isfinite(rows).any(0))[0] if len(rows) else np.array([], int)
+            if len(never):
+                names = getattr(panel, "domains", None) or [f"domain {j}" for j in range(d)]
+                raise ValueError(f"phenotype {g}: {', '.join(names[j] for j in never)} never observed at the "
+                                 f"landmark, so its landmark prior is undefined; drop the domain or merge groups")
+            mu1[g] = np.nanmean(rows, 0) if len(rows) else 0.0
+            cov = np.ma.cov(np.ma.masked_invalid(rows), rowvar=False).filled(0.0) if len(rows) > 2 else np.eye(d)
+            S1[g] = _pd(np.atleast_2d(cov) - np.diag(meas_var))
     y1f = np.where(np.isnan(y1), mu1[panel.group], y1)
-    y1c = y1f - np.nanmean(y1f, 0)
+    y1c = y1f - (np.nanmean(y1f, 0) if landmark is None else centre)
     t = lambda a: torch.as_tensor(np.asarray(a, float))
     Ti = torch.as_tensor([len(ti) for ti in panel.t], dtype=torch.long)
     return Prepared(t(Y), t(O), t(dt), t(dose), t(expo), t(on), t(panel.z), t(y1c),
@@ -129,11 +138,24 @@ def _landmark_update(mu, S, y, o, h, R):
     return m, 0.5 * (P + P.transpose(-1, -2))
 
 
-def participant_loglik(x: torch.Tensor, lay: Layout, prep: Prepared, idx: torch.Tensor) -> torch.Tensor:
-    """(n,) log-likelihood contributions of the participants in idx."""
+def participant_loglik(x: torch.Tensor, lay: Layout, prep: Prepared, idx: torch.Tensor,
+                       per_node: bool = False, nodes: torch.Tensor | None = None) -> torch.Tensor:
+    """(n,) log-likelihood contributions of the participants in idx. With per_node, (n, K) instead:
+    log p(y_i,2..T | y_i,1, u_k) at each Gauss-Hermite node u_k of gh_nodes(K), before weighting
+    (their weighted log-sum-exp is the default output; pdx.speed_at turns them into posteriors).
+    nodes (n, K), with per_node only: each participant's own values of u to evaluate at, in place of
+    the shared nodes (adaptive quadrature, pdx.speed_at)."""
     spec = lay.spec
     d, K = spec.d, spec.n_quad
-    U, logw = gh_nodes(K)
+    if nodes is None:
+        U, logw = gh_nodes(K)
+        Un = U[None, :]                                                          # (1, K): shared nodes
+    else:
+        if not per_node:
+            raise ValueError("participant_loglik: nodes need per_node=True (the Gauss-Hermite weights do not apply)")
+        if tuple(nodes.shape) != (len(idx), K):
+            raise ValueError(f"participant_loglik: nodes must be ({len(idx)}, {K})")
+        Un = nodes.to(x.dtype)                                                   # (n, K): each participant's own
     g = prep.g[idx]
     n = len(idx)
     AG, QG = drifts(x, lay), noise_cov(x, lay)
@@ -146,7 +168,7 @@ def participant_loglik(x: torch.Tensor, lay: Layout, prep: Prepared, idx: torch.
     if lay.has("theta"):
         eta = eta + y1c @ lay.get(x, "theta")
     # log-speed at the nodes, bounded so that a wild trial point in a line search stays cheap
-    s = torch.exp(torch.clamp(eta[:, None] + sig[:, None] * U[None, :], -LOG_SPEED_BOUND, LOG_SPEED_BOUND))
+    s = torch.exp(torch.clamp(eta[:, None] + sig[:, None] * Un, -LOG_SPEED_BOUND, LOG_SPEED_BOUND))
     mu_l = torch.zeros(n, d, dtype=x.dtype)
     if lay.has("gam_y"):
         mu_l = mu_l + y1c * lay.get(x, "gam_y")[g]
@@ -161,14 +183,14 @@ def participant_loglik(x: torch.Tensor, lay: Layout, prep: Prepared, idx: torch.
     m1, P1 = _landmark_update(prep.mu1[g], prep.S1[g], Y[:, 0], O[:, 0], h[:, 0], R)
     # filter state: X mean, load mean, and the blocks of the joint covariance [[Pxx, Pxl], [Plx, Pll]]
     mX = m1[:, None, :].expand(n, K, d)
-    ml = mu_l[:, None, :] + lam[:, None, :] * U[None, :, None]
+    ml = mu_l[:, None, :] + lam[:, None, :] * Un[:, :, None]
     Pxx = P1[:, None].expand(n, K, d, d)
     Pxl = torch.zeros(n, K, d, d, dtype=x.dtype)
     Pll = torch.diag_embed(tau2)[:, None].expand(n, K, d, d)
     ll = torch.zeros(n, K, dtype=x.dtype)
     T = int(prep.Ti[idx].max())                            # no work on padding beyond this chunk's longest
     if T < 2:
-        return torch.logsumexp(ll + logw[None, :], 1)
+        return ll if per_node else torch.logsumexp(ll + logw[None, :], 1)
     E, M, S = transitions_grouped(AG, QG, g, s[:, :, None] * prep.dt[idx][:, None, :T - 1])  # (n, K, T-1, d, d)
     if lay.has("omega"):                                   # era scales the noise (S is linear in Q)
         S = S * torch.exp(lay.get(x, "omega")[0] * z[:, spec.noise_era_col])[:, None, None, None, None]
@@ -200,7 +222,7 @@ def participant_loglik(x: torch.Tensor, lay: Layout, prep: Prepared, idx: torch.
         Pxl = Pxl - bmm(Kx, Bt[..., d:])
         Pxx = 0.5 * (Pxx + tr(Pxx))
         Pll = 0.5 * (Pll + tr(Pll))
-    return torch.logsumexp(ll + logw[None, :], 1)
+    return ll if per_node else torch.logsumexp(ll + logw[None, :], 1)
 
 
 def loglik(x: torch.Tensor, lay: Layout, prep: Prepared, chunk: int | None = None) -> torch.Tensor:

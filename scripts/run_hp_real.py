@@ -12,11 +12,17 @@ PYTHONHASHSEED must be 0 (Step 1's FCI visits sets in hash order; the script ref
 p-value instead of the conditional bootstrap's, the speed estimates with a model-based interval
 for Sp-1, and the per-link localisation. It is an exploratory look, not the registered analysis.
 --time-replicate stops after the observed fits and one batch of bootstrap replicates, and writes
-hp_tdpigd_timing.json with the full run's estimated length; the same command without it then
+hp_tdpigd_development_timing.json with the full run's estimated length; the same command without it then
 continues from the checkpoint. Progress is printed and appended to <name>.log in the output folder.
 
+Participant set (D33): by default the run uses Paper 2's development participants (training and
+validation; escalation-study-v2/PROTOCOL.md §3.2), so the held-out participants stay unread. It
+reads data/derived/panel_tdpigd_development.npz and panel_spec_development.json, and writes
+hp_tdpigd_development.json, .log, _checkpoint.json and _timing.json. The run refuses a panel built
+for another set. --set all reads and writes the earlier whole-cohort names.
+
 The panel (TD and PIGD participants) and its specification come from
-scripts/build_analysis_panel.py (data/derived/panel_tdpigd.npz and panel_spec.json). The expert
+scripts/build_analysis_panel.py (data/derived/panel_tdpigd_development.npz and its spec). The expert
 map is the frozen WP1 map, a JSON file of links by domain name (configs/expert_map_TEMPLATE.json
 shows the format); it holds no participant data. The support is selected on this panel, so that every bootstrap
 replicate repeats exactly the same selection; Step 1's reported map, from all participants, is a
@@ -154,9 +160,10 @@ def build_spec(panel, pspec: dict, names: list, expert: np.ndarray, cfg: dict) -
 
 
 def run_settings(a, paths, cfg: dict, s1: Step1Config) -> dict:
-    """Everything a checkpoint must share with the run that resumes it (audit A8): the inputs (by
-    hash), the map, the seed and the protocol constants that change the fits or the replicates."""
-    return {"seed": a.seed, "panel_sha256": _common.file_sha256(paths[0]),
+    """Everything a checkpoint must share with the run that resumes it (audit A8): the participant
+    set, the inputs (by hash), the map, the seed and the protocol constants that change the fits or
+    the replicates."""
+    return {"participant_set": a.set, "seed": a.seed, "panel_sha256": _common.file_sha256(paths[0]),
             "panel_spec_sha256": _common.file_sha256(paths[1]), "map_sha256": _common.file_sha256(a.expert),
             "engine": cfg["engine"], "fit": cfg["fit"], "treatment": cfg["treatment"], "h": cfg["hp"]["h"],
             "step1": {"alpha": s1.alpha, "depth": s1.depth, "test": s1.test, "add_interval": s1.add_interval,
@@ -186,8 +193,10 @@ def load_checkpoint(path, settings: dict, n_max: int, log) -> dict:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--panel", default=str(_common.DATA / "derived" / "panel_tdpigd.npz"))
-    ap.add_argument("--spec", default=str(_common.DATA / "derived" / "panel_spec.json"))
+    ap.add_argument("--set", choices=["development", "all"], default="development",
+                    help="participants: Paper 2's development sets (D33; the default) or everyone (the old run)")
+    ap.add_argument("--panel", default=None, help="default: data/derived/panel_tdpigd_<set>.npz")
+    ap.add_argument("--spec", default=None, help="default: data/derived/panel_spec_<set>.json")
     ap.add_argument("--expert", required=True, help="the frozen expert map: JSON {'links': [[from, to], ...]}")
     ap.add_argument("--interval-in-step1", action="store_true", help="the §6.3 interval rule failed in WP0")
     ap.add_argument("--dose-in-step1", action="store_true", help="dose nodes in the Step 1 table")
@@ -210,10 +219,13 @@ def main():
         torch.set_num_threads(a.threads)
     _common.require_approval(a.approval, "the WP4 analysis")
     _common.require_hash_seed()
+    sfx = "" if a.set == "all" else f"_{a.set}"
+    a.panel = a.panel or str(_common.DATA / "derived" / f"panel_tdpigd{sfx}.npz")
+    a.spec = a.spec or str(_common.DATA / "derived" / f"panel_spec{sfx}.json")
     paths = [_common.require_inside(_common.Path(p), _common.DATA, "inputs") for p in (a.panel, a.spec)]
     out = _common.require_inside(_common.Path(a.out), _common.RESULTS, "the output")
     out.mkdir(parents=True, exist_ok=True)
-    name = "hp_first_look" if a.first_look else "hp_tdpigd"
+    name = ("hp_first_look" if a.first_look else "hp_tdpigd") + sfx
 
     def log(message: str) -> None:
         line = f"{time.strftime('%Y-%m-%d %H:%M')}  {message}"
@@ -224,6 +236,10 @@ def main():
     cfg = config.load()
     panel = load_panel(paths[0])
     pspec = json.loads(paths[1].read_text(encoding="utf-8"))
+    built_for = pspec.get("split", {}).get("participant_set", "all")
+    if built_for != a.set:
+        sys.exit(f"Refusing: the panel was built for the participant set '{built_for}', and this run asks for "
+                 f"'{a.set}'. Rebuild it with scripts/build_analysis_panel.py --set {a.set}.")
     names = pspec["domains"]
     expert, aside = expert_support(a.expert, names)
     spec = build_spec(panel, pspec, names, expert, cfg)
@@ -234,7 +250,7 @@ def main():
     support_fn = make_support_fn(expert, s1)
     settings = run_settings(a, paths, cfg, s1)
     code = _common.code_version()
-    log(f"panel: {panel.n} participants, {panel.d} domains; map {a.expert} ({int(expert.sum())} links); "
+    log(f"participant set: {a.set}; panel: {panel.n} participants, {panel.d} domains; map {a.expert} ({int(expert.sum())} links); "
         f"{spec.n_quad} quadrature nodes; load moves with speed: {spec.load_on_speed}; code {code['commit']}")
 
     map_status = json.loads(open(a.expert, encoding="utf-8").read()).get("status")
@@ -249,7 +265,7 @@ def main():
 
     n_max = a.n_max or cfg["hp"]["n_max"]
     n_speed = cfg["speed"]["bootstrap"] if a.speed_bootstrap is None else a.speed_bootstrap
-    ckpt = out / "hp_tdpigd_checkpoint.json"
+    ckpt = out / f"{name}_checkpoint.json"
     state = load_checkpoint(ckpt, settings, n_max, log)
     if code not in state["code_versions"]:
         state["code_versions"].append(code)
@@ -309,7 +325,7 @@ def main():
                   "hours_for_the_rest_at_most": est, "replicate_info": state["replicate_info"][done:],
                   "note": "Besag-Clifford stops early once h replicates reach the observed statistic, so the "
                           "full run can be much shorter than the estimate."}
-        (out / "hp_tdpigd_timing.json").write_text(json.dumps(_common.to_json(timing), indent=1))
+        (out / f"{name}_timing.json").write_text(json.dumps(_common.to_json(timing), indent=1))
         log(f"timing: {per / 60:.0f} min per replicate in a worker; the remaining {timing['remaining_replicates_at_most']} "
             f"replicates take at most {est:.0f} h with {a.jobs} jobs; the replicates are kept for the full run")
         return
@@ -338,8 +354,8 @@ def main():
     report["speed_diagnostics"] = links.diagnostics
     report["speed_set"] = links.speed_set
     report["domains"] = {"names": names, **localise.per_domain_tests(links, spec_s)}
-    (out / "hp_tdpigd.json").write_text(json.dumps(_common.to_json(report), indent=1))
-    log(f"wrote {out / 'hp_tdpigd.json'}")
+    (out / f"{name}.json").write_text(json.dumps(_common.to_json(report), indent=1))
+    log(f"wrote {out / f'{name}.json'}")
 
 
 def save_speed(state: dict, save_state, n_speed: int, log):

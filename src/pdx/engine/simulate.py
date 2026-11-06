@@ -28,7 +28,9 @@ def _treat(par: dict, spec, dose, expo, on, g):
     return h
 
 
-def simulate_from_fit(fit: Fit, panel: Panel, rng: np.random.Generator) -> Panel:
+def simulate_from_fit(fit: Fit, panel: Panel, rng: np.random.Generator, speeds: list | None = None) -> Panel:
+    """The panel with its later visits drawn from the fit. If `speeds` is a list, each participant's
+    drawn log-speed is appended to it (for checks of the speed posterior; the draws are unchanged)."""
     spec, par = fit.spec, fit.params
     d = spec.d
     prep = prepare(panel, spec.meas_var, spec.n_groups)
@@ -44,6 +46,8 @@ def simulate_from_fit(fit: Fit, panel: Panel, rng: np.random.Generator) -> Panel
         u = rng.normal()
         eta = par["log_speed"][g] + panel.z[i] @ par["beta"] + y1c[i] @ par["theta"]
         s = float(np.exp(eta + par["sigma"][g] * u))
+        if speeds is not None:
+            speeds.append(float(eta + par["sigma"][g] * u))
         mu_l = par["gam_y"][g] * y1c[i] + par["gam_z"][g] @ panel.z[i] + par["lam"][g] * u
         l = mu_l + par["tau"][g] * rng.normal(size=d)
         q_era = np.exp(par["omega"] * panel.z[i, spec.noise_era_col]) if spec.noise_era_col is not None else 1.0

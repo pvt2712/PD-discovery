@@ -147,10 +147,13 @@ def two_slice_table(panel: Panel, baseline: np.ndarray | None = None, max_dt: fl
 
 
 def save_panel(panel: Panel, path) -> None:
-    """Save a panel without pickling (flat arrays plus offsets). Participant-level: only ever
+    """Save a panel without pickling (flat arrays plus offsets), with the participant numbers when the
+    panel has them (Paper 2's speed-at-decision step links by them). Participant-level: only ever
     inside the git-ignored data folder."""
     lens = np.array([len(t) for t in panel.t], int)
     extra = {} if panel.year is None else {"year": np.concatenate(panel.year)}
+    if panel.ids is not None:
+        extra["ids"] = np.asarray(panel.ids)
     np.savez_compressed(path, lens=lens, y=np.concatenate(panel.y), t=np.concatenate(panel.t),
                         group=panel.group, z=panel.z, dose=np.concatenate(panel.dose),
                         exposure=np.concatenate(panel.exposure), on=np.concatenate(panel.on),
@@ -164,4 +167,5 @@ def load_panel(path) -> Panel:
     doms = [str(v) for v in f["domains"]] or None
     return Panel(split(f["y"]), split(f["t"]), f["group"], z=f["z"], dose=split(f["dose"]),
                  exposure=split(f["exposure"]), on=split(f["on"]), domains=doms,
+                 ids=f["ids"] if "ids" in f.files else None,
                  year=split(f["year"]) if "year" in f.files else None)

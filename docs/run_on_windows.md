@@ -124,29 +124,28 @@ git pull
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
 $env:PYTHONUTF8 = "1"
 $env:PYTHONHASHSEED = "0"
-$AP = "Investigator, 5 November 2026: rebuild after the revision"
+$AP = "Investigator, 6 November 2026: Paper 2 protocol approved; H-P on the development participants (D33)"
 .\.venv\Scripts\python.exe scripts\build_ppmi_tables.py --raw "D:\PPMI\raw" --approval $AP
 .\.venv\Scripts\python.exe scripts\run_wp0_audit.py --visits data\derived\wp0_visits.parquet --approval $AP
-.\.venv\Scripts\python.exe scripts\build_analysis_panel.py --approval $AP
+.\.venv\Scripts\python.exe scripts\build_analysis_panel.py --set development --approval $AP
 ```
 
 - **`pip install`** adds `pyarrow`, which writes the build's tables. It is needed once.
 - **The table build** takes a few minutes. It writes the participant-level tables to `data\derived\`. In `results\wp0\` it writes the participant flow and a manifest of every file's date stamp and SHA-256.
 - **The audit** repeats the WP0 feasibility tables in `results\wp0\wp0_audit.json`. H-P doesn't need it, but it allows a comparison with the WP0 report.
-- **The panel build** writes `data\derived\panel_tdpigd.npz` and `panel_spec.json`, the two files H-P reads.
+- **The panel build** keeps only Paper 2's development participants (training and validation; decision D33), so the held-out participants never enter the panel, its normal-scores tables or its error variances. It writes `data\derived\panel_tdpigd_development.npz` and `panel_spec_development.json`, the two files H-P reads. Its first line names the participant set and how many of the tables' participants it keeps.
 
 **Check against the Mac.** The Mac used the download of 13 October 2026, whose file names end in `13Oct2026`. From that download, after the revision of 5 November:
 - the table build prints `PD cohort 2262; primary population 1127; grid rows 6254`;
-- the panel build prints 706 TD participants with 2,919 transitions, and 177 PIGD participants with 675. Their share of missing values is 0.124 and 0.146: higher than before the revision, because examinations from treated participants with no recorded state are no longer used;
-- the panel build also prints the error variances, from tremor 0.19 down to daily function 0.139.
+- the whole-cohort panel held 706 TD participants with 2,919 transitions, and 177 PIGD participants with 675, with error variances from 0.139 (daily function) to 0.208 (cognition). The development panel keeps about four fifths of them, so its counts are smaller and its error variances move a little. Send the printed lines, and Claude compares them with the Mac's development build.
 
 A newer PPMI download holds more follow-up, so it gives different numbers. In that case, stop and ask Claude before going on: WP0's figures, and the settings of the synthetic runs, come from the October download.
 
 ### 7b. Or copy the analysis panel from the Mac
 
 H-P needs only two files from the Mac's `phenotype-discovery/data/derived/` folder:
-- `panel_tdpigd.npz` (about 70 KB) holds the TD and PIGD participants' domain scores by visit, with visit times, treatment and four baseline covariates.
-- `panel_spec.json` (about 3 KB) holds the domains, the treated domains, the measurement-error variances and how they were derived.
+- `panel_tdpigd_development.npz` (about 60 KB) holds the development participants' domain scores by visit, with visit times, treatment, four baseline covariates and the participant numbers.
+- `panel_spec_development.json` (about 3 KB) holds the domains, the treated domains, the measurement-error variances, how they were derived, and the participant set.
 
 Copy the panel built after the revision of 5 November; an older one has the medication errors the revision fixed.
 
@@ -164,15 +163,15 @@ Then put both files in `data\derived\`.
 - rebuild the data (7a) or copy the rebuilt panel from the Mac (7b);
 - then time one batch of replicates, and only then start the full run, both below.
 
-The old checkpoint is renamed automatically to `hp_tdpigd_checkpoint.<date-time>.old.json`, because its settings differ. It holds only the zeros, so it can be deleted.
+**Development participants only (D33, 6 November 2026).** H-P is now supporting work for Paper 2, and it runs on Paper 2's development participants. The run names its outputs `hp_tdpigd_development.*`, and it refuses a panel built for another set. The old `hp_tdpigd_checkpoint.json` belongs to the whole-cohort run and is never reused; it holds only the zeros, so it can be deleted.
 
-**1. Time one batch first.** This runs the two observed fits, then one batch of bootstrap replicates (six with `--jobs 6`), writes `results\wp4\hp_tdpigd_timing.json` and stops:
+**1. Time one batch first.** This runs the two observed fits, then one batch of bootstrap replicates (six with `--jobs 6`), writes `results\wp4\hp_tdpigd_development_timing.json` and stops:
 
 ```powershell
 cd C:\work\phenotype-discovery
 $env:PYTHONUTF8 = "1"
 $env:PYTHONHASHSEED = "0"
-.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 6 --time-replicate --approval "Investigator, 5 November 2026: exploratory run after the revision"
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --set development --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 6 --time-replicate --approval "Investigator, 6 November 2026: Paper 2 protocol approved; H-P on the development participants (D33)"
 ```
 
 - **What it does.**
@@ -180,12 +179,12 @@ $env:PYTHONHASHSEED = "0"
   - Each start stops once it gains less than 0.01 in log-likelihood over 100 iterations.
   - Expect several hours before the first replicate line.
 - **Checks on itself.** The script refuses to run unless `PYTHONHASHSEED` is 0. The bootstrap stops with the reason if its first five replicates all fail, all give 0, or all have fits that never left their start. This is the failure that went unseen on 4–5 November.
-- **What to send.** Copy `hp_tdpigd_timing.json` and `hp_tdpigd.log` to the Mac and ask Claude to read them. The log's last line gives the minutes per replicate and the most the full run can take. Choose `--n-max` from it.
+- **What to send.** Copy `hp_tdpigd_development_timing.json` and `hp_tdpigd_development.log` to the Mac and ask Claude to read them. The log's last line gives the minutes per replicate and the most the full run can take. Choose `--n-max` from it.
 
 **2. The full run** is the same command without `--time-replicate`:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 6 --approval "Investigator, 5 November 2026: exploratory run after the revision"
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --set development --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 6 --approval "Investigator, 6 November 2026: Paper 2 protocol approved; H-P on the development participants (D33)"
 ```
 
 It continues from the checkpoint. The observed fits and the timed replicates are reused, not recomputed. `--jobs 6` runs six bootstrap replicates at once, then six speed samples, each in its own single-threaded process; section 4's measurement on this PC chose 6. Every replicate has its own seed and the stopping rule is applied in replicate order, so the result does not depend on the number of jobs.
@@ -194,11 +193,11 @@ It continues from the checkpoint. The observed fits and the timed replicates are
   - The bootstrap stops once 20 replicates reach the observed statistic. If H-P is far from rejecting, that takes about 40 replicates. If it rejects, it runs to the cap of 199.
   - The speed bootstrap then adds 100 samples.
 - **If it stops,** run the same command again.
-  - **What is kept.** The checkpoint `results\wp4\hp_tdpigd_checkpoint.json` holds the run's settings, the observed fits with their parameters, and every replicate and speed sample. They are all reused while the inputs, map, seed and protocol constants are unchanged. `--jobs` and `--threads` may change.
+  - **What is kept.** The checkpoint `results\wp4\hp_tdpigd_development_checkpoint.json` holds the run's settings, the observed fits with their parameters, and every replicate and speed sample. They are all reused while the inputs, map, seed and protocol constants are unchanged. `--jobs` and `--threads` may change.
   - **What is refused.** A lower `--n-max` than the checkpoint's would give a wrong p-value, so the script refuses it.
-- **Progress** is printed and appended to `results\wp4\hp_tdpigd.log`. Each replicate line gives its statistic, its fits' evaluations and its minutes.
+- **Progress** is printed and appended to `results\wp4\hp_tdpigd_development.log`. Each replicate line gives its statistic, its fits' evaluations and its minutes.
 - **One run at a time.** Run H-P and the engine gate one after the other: each already uses the processor fully with `--jobs`.
-- **Outputs** are aggregates only: `results\wp4\hp_tdpigd.json`, the timing file and the log. The report also records:
+- **Outputs** are aggregates only: `results\wp4\hp_tdpigd_development.json`, the timing file and the log. The report also records:
   - the settings;
   - the code versions used;
   - each fit's starts and how they stopped;
@@ -209,7 +208,7 @@ It continues from the checkpoint. The observed fits and the timed replicates are
 **The first look** (observed fits only, with a χ² p-value) is optional:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_hp_real.py --expert configs\expert_map_provisional.json --first-look --approval "Investigator, 5 November 2026: exploratory run after the revision"
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --set development --expert configs\expert_map_provisional.json --first-look --approval "Investigator, 6 November 2026: Paper 2 protocol approved; H-P on the development participants (D33)"
 ```
 
 - **Reading the result.** It is exploratory: the map is provisional, and WP1–WP3 come later. The report says so in its first line.

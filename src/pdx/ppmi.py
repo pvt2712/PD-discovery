@@ -488,7 +488,7 @@ def analysis_panel(part: pd.DataFrame, grid: pd.DataFrame, domains=CORE_DOMAINS,
         on.append((rows.motor_state.eq("ON only") & motor_on).to_numpy(float))
         yr.append(rows.year.to_numpy(int))
     group = (prim.loc[ids, "phenotype"] == "PIGD").astype(int).to_numpy()
-    panel = Panel(y, t, group, z=z, dose=dose, exposure=expo, on=on, domains=list(domains),
+    panel = Panel(y, t, group, z=z, dose=dose, exposure=expo, on=on, domains=list(domains), ids=np.asarray(ids),
                   meta={"source": "PPMI", "motor_on": motor_on}, year=yr)
     y1 = np.array([yi[0] for yi in y])
     var_y1 = {str(k): np.nanvar(y1[group == k], axis=0, ddof=1).tolist() for k in (0, 1)}
