@@ -321,6 +321,8 @@ At PPMI's sizes many links will be unresolved. They are reported as unresolved, 
 
 They come from the models fitted for H-P, at no extra cost, and are reported with participant-bootstrap 95% intervals whatever H-P's result.
 
+*Amended by D34 (7 November 2026):* on PPMI they are reported, for now, with model-based 95% intervals. Each fit's parameters are drawn from their asymptotic normal distribution (the inverse of the observed information), and the estimands are recomputed on each draw and summarised as the bootstrap's samples would be. These intervals hold the selected support fixed and rely on the model, so they are narrower than the participant bootstrap's. The participant bootstrap may follow as a sensitivity analysis.
+
 - **Sp-1, the speed ratio.** How many times faster the typical PIGD patient's disease runs than the typical TD patient's.
   - It is the ratio of geometric-mean speeds in the speed-only model. Age at onset, sex, era and disease duration are standardised to their pooled distribution; each phenotype is averaged over its own year-1 states, which partly reflect the phenotype itself.
   - When H-P does not reject, it is the speed at which PIGD runs TD's mechanism. When H-P rejects, it is the best single time scale, and the minimal-L1 speed of the localisation (§7.3.3) is shown beside it.
@@ -623,10 +625,11 @@ With about ten core domains in two years and six baseline variables, the Step 1 
   2. Simulate new trajectories for the same participants from the fitted null model. Each participant keeps their phenotype label, baseline characteristics, year-1 state, visit dates, dose path and pattern of missing visits.
   3. On each simulated dataset, repeat everything: select the support again (§7.2), refit both models and compute the likelihood ratio.
   4. **Sequential stopping** (Besag & Clifford 1991). Replicates are drawn one at a time, up to 999. Drawing stops once 20 simulated ratios are at least as large as the observed one, and then p = 20 ÷ the number drawn. Otherwise p = (the number at least as large + 1) ÷ 1,000. Ties count as at least as large. The smallest attainable p-value is 0.001.
+     - *Amended by D34 (7 November 2026):* on PPMI, drawing stops at 39 replicates. H-P then rejects at 5% when at most one replicate is at least as large as the observed ratio, and the smallest attainable p-value is 0.025. A Monte Carlo p-value is valid at any number of replicates; fewer replicates only make it coarser and cost some power. The χ² p-value is reported beside it as a sensitivity analysis.
 - **Why a bootstrap.** A χ² reference held in the synthetic checks (6.0–6.5% false rejections). But the real data add bounded scores, dropout, measurement error and a selected support, and likelihood-ratio invariance tests in panel networks have proved "prone to false discovery" (Du 2026).
 - **Validity.** The bootstrap tests the declared null model, and it is valid if that model holds, up to its estimated parameters. WP3 checks its calibration on data from two independently coded families of simulators, which apply the phenotype rule to simulated baselines (§8.2). Model checks compare the fitted null with the real data (§8.2).
 - **Why speed is per participant.** A test that gives every participant in a phenotype the same speed rejected far too often when speeds varied within phenotypes: 10.5% at the base size of 600 patients, and up to 65% in cohorts 16 times larger. The participant-level test stayed at 4.6% (Appendix E).
-- **The speed estimates** (§2.5) come from the same fits: Sp-1 and Sp-2 from the null model, and Sp-3 from the free model. Their intervals come from 200 participant-bootstrap samples.
+- **The speed estimates** (§2.5) come from the same fits: Sp-1 and Sp-2 from the null model, and Sp-3 from the free model. Their intervals come from 200 participant-bootstrap samples; on PPMI they are model-based for now (D34).
 
 **7.3.2 Speed-adjusted joint discovery (exploratory localisation).**
 - **Model.** Both phenotypes' maps are estimated together: PIGD's links equal TD's links run at PIGD's speed, plus sparse deviations Δ.
@@ -1024,6 +1027,8 @@ The total fits the 10-day budget (D14). If measured costs exceed it, the design 
 
 H-P's calibration in S0 and S1 of both families is never cut. A fast Step 1 fit costing more than 1 minute, the target of §7.2, means the fast configuration is redesigned (fewer columns, or a lower separating-set cap) before the simulation runs.
 
+**Measured cost on PPMI (D34, 7 November 2026).** The assumption of about a minute per engine fit does not hold on the real data. On the development panel, one pair of observed fits takes days on the investigator's six-core PC: after more than 14 hours it was still in the speed-only fit's first two starts. Each bootstrap fit runs on one core, about 2.8 times slower per evaluation than six threads. At that cost, 999 H-P replicates and 200 speed samples would take months. D34 therefore caps H-P's bootstrap on PPMI at 39 replicates and gives the speed estimates model-based intervals. The simulation rows above keep their sizes until they are re-costed.
+
 ## 9. Statistical considerations
 
 - **Precision.** There is no general sample-size rule for these models. WP0 checks H-P's power with the real counts (§3), and WP3 reports power, coverage and class reachability at the real sizes. Step 1 uses all participants and has the most power; Steps 2 and 5 depend on the size of the PIGD group.
@@ -1325,6 +1330,7 @@ Part I's map informs the choice of confounders; it gives no causal licence by it
 | D31 | Whether the participant load moves with speed | Not in the primary model (λ = 0); λ free is a sensitivity analysis. The PC run of 4–5 November 2026 fitted speed–load correlations near −1 in most domains, with the load's own spread at zero | Investigator | Decided 5 November 2026, after an exploratory run whose bootstrap had failed |
 | D32 | Quadrature nodes | 20, checked against 30 and 40 at the engine gate. At the real size 12 nodes missed the gate's own agreement rule (audit A7) | Investigator | 5 November 2026 |
 | D33 | The place of this study after Paper 2 moved to effect estimation | This protocol becomes supporting work for the thesis (the experiment 1 paper); Paper 2's protocol is `../escalation-study-v2/PROTOCOL.md`. H-P and the speed estimands run on that protocol's development participants only (its training and validation sets, assigned by a keyed hash of the participant number), so its held-out set stays unread until Paper 2's freeze. The PC full run waits for the participant filter. Everything else here is unchanged | Investigator | 6 November 2026, with the approval of Paper 2's protocol |
+| D34 | The size of the bootstraps on PPMI | The fits cost far more than §8.8 assumed (§8.8, "Measured cost on PPMI"), so on PPMI H-P's bootstrap stops at 39 replicates (Besag–Clifford, h = 20; smallest p 0.025), and that capped bootstrap is H-P's result. The speed estimates get model-based intervals (§2.5), and the χ² p-value is reported beside H-P's as a sensitivity analysis. A larger bootstrap and the participant bootstrap of the speed estimates may follow when the result has been seen. They are sensitivity analyses, reported beside these results and never replacing them. The report always gives the p-value at the cap of 39, from the first replicates in order, however many are drawn later. Fixed before any statistic on the development participants had been seen | Investigator | 7 November 2026 |
 
 ## 18. Timeline (provisional)
 
@@ -1565,6 +1571,12 @@ Aggregates from `../escalation-discovery` (its PROTOCOL.md §3, §10.1 and §12,
 | Provenance | Entry date, correction history, instrument version | Audit trail and quality flags |
 
 ## Appendix D. Changes from v0.3, v0.4 and v0.4.1
+
+**After v0.5 (7 November 2026): D34, the size of the bootstraps on PPMI.** The development run's observed fits had taken more than 14 hours without leaving the speed-only fit's first two starts, so the 999-replicate H-P bootstrap and the 200-sample speed bootstrap would take months on the investigator's PC. The decision was made before any statistic on the development participants had been seen:
+- **H-P.** On PPMI the bootstrap stops at 39 replicates (§7.3.1), and that capped bootstrap is H-P's result. The χ² p-value is reported beside it as a sensitivity analysis.
+- **Speed estimates.** They get model-based intervals (§2.5).
+- **Later runs.** A larger bootstrap and the participant bootstrap may follow, only as sensitivity analyses.
+- **Code.** `[wp4]` in `configs/protocol_v0.5.toml` holds the sizes, and `scripts/run_hp_real.py` uses them by default. `speed.model_based` computes the intervals. The report always gives the p-value at the cap of 39, from the first replicates in order. The run accepts a lower cap than its checkpoint's only while no replicate has been drawn, and records the change.
 
 **After v0.5 (5 November 2026): the revision after the PC run.** The exploratory full run of D30 on the investigator's Windows PC (883 participants, 199 bootstrap replicates, 100 speed samples) gave no usable result. Every bootstrap fit had stopped at its start: participants seen only at the landmark filled a whole likelihood batch in the single-threaded workers, the gradient call failed there, and the failure was read as convergence (audit A1). All 199 replicates were exactly 0, so the reported p = 0.005 was empty, and the speed intervals were the start values reflected. Neither observed fit had converged, and the two fits put PIGD on very different time scales. The revision, before any rerun:
 - **Engine.** Single-visit participants leave the likelihood batches (they add exactly 0). A start that cannot be evaluated makes a failed fit, which H-P counts as a failed replicate. The bootstrap stops if its first five replicates all fail, all give 0, or all have fits that never left their start. The speed-only fit is restarted from the free fit projected onto it, alternating until neither improves; the observed fit also starts with the speed spread away from zero. Each start stops when the log-likelihood gains less than 0.01 over 100 iterations. Bootstrap fits start at the fitted null written for the support they re-select.

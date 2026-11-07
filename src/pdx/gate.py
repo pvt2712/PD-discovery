@@ -25,8 +25,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from . import parallel
-from .engine.fit import Fit, covariance_checked, fit_model, fit_pair, hessian, null_to, param_names, start_values
+from . import parallel, progress
+from .engine.fit import KIND_NAMES, Fit, covariance_checked, fit_model, fit_pair, hessian, null_to, param_names, start_values
 from .engine.likelihood import loglik, prepare, value_and_grad
 from .engine.model import Layout, ModelSpec
 from .engine.reference import reference_loglik
@@ -93,9 +93,11 @@ def start_setup(panel, spec: ModelSpec, fit_kw: dict | None) -> dict:
 
 
 def start_fit(shared: dict, job: tuple) -> float:
-    """One fit of one model (`kind`) from the start x0 (None: the default start)."""
-    kind, x0 = job
-    return fit_model(shared["panel"], shared["spec"], kind, x0=x0, prep=shared["prep"], **shared["fit_kw"]).loglik
+    """One fit of one model (`kind`) from the start x0 (None: the default start); job is
+    (kind, x0, k), k numbering the starts of that kind (progress lines only)."""
+    kind, x0, k = job if len(job) == 3 else (*job, 0)
+    with progress.piece(f"{KIND_NAMES.get(kind, kind)}, " + ("default start" if x0 is None else f"dispersed start {k}")):
+        return fit_model(shared["panel"], shared["spec"], kind, x0=x0, prep=shared["prep"], **shared["fit_kw"]).loglik
 
 
 def check_dispersed_starts(panel, spec: ModelSpec, rng, n_starts: int = 5, scale: float = 0.3,
@@ -109,8 +111,9 @@ def check_dispersed_starts(panel, spec: ModelSpec, rng, n_starts: int = 5, scale
     for kind in ("null", "free"):
         x_def = start_values(panel, spec, kind)
         starts = [None] + [x_def + scale * rng.normal(size=len(x_def)) for _ in range(n_starts)]
-        queue += [(kind, x0) for x0 in starts[len(done.setdefault(kind, [])):]]
-    for (kind, _), ll in zip(queue, parallel.ordered(start_fit, queue, jobs, start_setup, (panel, spec, fit_kw))):
+        first = len(done.setdefault(kind, []))
+        queue += [(kind, x0, k) for k, x0 in enumerate(starts) if k >= first]
+    for (kind, _, _), ll in zip(queue, parallel.ordered(start_fit, queue, jobs, start_setup, (panel, spec, fit_kw))):
         done[kind].append(ll)
         if on_fit:
             on_fit(done)
@@ -130,8 +133,9 @@ def profile_setup(fit: Fit, panel, n_grid: int, fit_kw: dict | None) -> dict:
 def profile_job(shared: dict, job: tuple) -> dict:
     """The profile of one parameter: job is (name, index, standard error)."""
     name, index, se = job
-    return plain(profile(shared["fit"], shared["panel"], name, index, se, n_grid=shared["n_grid"],
-                         fit_kw=shared["fit_kw"]))
+    with progress.piece(f"profile of {name}"):
+        return plain(profile(shared["fit"], shared["panel"], name, index, se, n_grid=shared["n_grid"],
+                             fit_kw=shared["fit_kw"]))
 
 
 def profile(fit: Fit, panel, name: str, index: int, se: float, half_width_se: float = 4.0, n_grid: int = 9,
@@ -188,6 +192,11 @@ def recovery_setup(scenario: str, n: int, seed: int, d: int, fit_kw: dict | None
 
 def recovery_dataset(shared: dict, r: int) -> dict:
     """Dataset r of a recovery check, simulated with its own seed, fitted and compared with the truth."""
+    with progress.piece(f"recovery dataset {r + 1} ({shared['scenario']})"):
+        return _recovery_dataset(shared, r)
+
+
+def _recovery_dataset(shared: dict, r: int) -> dict:
     scenario, with_intervals = shared["scenario"], shared["with_intervals"]
     rng = np.random.default_rng(shared["seed"] + r)
     panel, info = scenarios.generate(scenario, shared["n"], rng, d=shared["d"], **shared["sim_kw"])

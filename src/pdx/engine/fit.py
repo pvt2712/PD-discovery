@@ -10,14 +10,20 @@ inflate the ratio (audit A3, after the PC run of 4 November 2026).
 A fit stops when L-BFGS-B converges, or when the log-likelihood has gained less than `min_gain`
 over the last `window` iterations, or at `maxiter`. A start where the model cannot be evaluated
 is never "converged": the fit is marked failed (audit A1).
+
+While a fit runs it reports progress (pdx.progress, when a script asks for it): each start's
+beginning and end, and every few minutes its iteration, evaluations, log-likelihood and gain over
+the stopping window. Reporting never changes the fit.
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import linalg, optimize
 
+from .. import progress
 from ..data import Panel
 from .likelihood import FAILED, Prepared, prepare, value_and_grad
 from .model import Layout, ModelSpec, pack_chol, pack_drift, unpack_numpy
@@ -238,6 +244,9 @@ def sigma_start(panel: Panel, spec: ModelSpec, kind: str, sigma: float = 0.6) ->
 
 # ---------------------------------------------------------------- fitting
 
+KIND_NAMES = {"null": "speed-only fit", "free": "free fit", "joint": "joint fit"}
+
+
 def fit_model(panel: Panel, spec: ModelSpec, kind: str, x0: np.ndarray | None = None,
               extra_starts: list | None = None, prep: Prepared | None = None,
               maxiter: int = 3000, chunk: int | None = None, penalty=None, ftol: float = 1e-10,
@@ -262,26 +271,46 @@ def fit_model(panel: Panel, spec: ModelSpec, kind: str, x0: np.ndarray | None = 
     starts += list(extra_starts or [])
     labels = list(labels or []) + [f"start {k + 1}" for k in range(len(labels or []), len(starts))]
     count = {"n": 0}
+    clock = {"eval": 0.0, "gmax": float("nan")}       # seconds spent evaluating; the last gradient's size
     errors: list = []
+    name = KIND_NAMES.get(kind, f"{kind} fit")
+    rule = f"; a start ends once it gains less than {min_gain:g} over {window} iterations" if window else ""
 
     def f(v):
         count["n"] += 1
-        return value_and_grad(v, lay, prep, chunk, penalty, errors)
+        t = time.perf_counter()
+        out = value_and_grad(v, lay, prep, chunk, penalty, errors)
+        clock["eval"] += time.perf_counter() - t
+        if len(out[1]):
+            clock["gmax"] = float(np.max(np.abs(out[1])))
+        return out
 
     best, finals, records = None, [], []
-    for s0, label in zip(starts, labels):
+    for k, (s0, label) in enumerate(zip(starts, labels)):
         s0 = np.asarray(s0, float)
-        n0 = count["n"]
+        n0, e0, t_start = count["n"], clock["eval"], time.time()
+        where = f"{name}, start '{label}' ({k + 1} of {len(starts)})"
         v0, _ = f(s0)
         if v0 >= FAILED:
+            progress.report(f"{where}: the model cannot be evaluated at this start, so it is skipped")
             finals.append(-np.inf)
             records.append({"label": label, "loglik": -np.inf, "stopped_by": "not evaluable at the start",
                             "error": errors[-1] if errors else "", "n_eval": count["n"] - n0, "n_iter": 0})
             continue
+        progress.report(f"{where}: begins at log-likelihood {-v0:.2f}; one evaluation takes "
+                        f"{clock['eval'] - e0:.1f} s; at most {maxiter} iterations{rule}")
         hist, stalled = [], {"flag": False}
+        beat = progress.Heartbeat()
 
         def callback(intermediate_result):
             hist.append(float(intermediate_result.fun))
+            if beat.due():
+                w = min(window, len(hist) - 1) if window else len(hist) - 1
+                n_ev = count["n"] - n0
+                progress.report(f"{where}: iteration {len(hist)}, {n_ev} evaluations, log-likelihood "
+                                f"{-hist[-1]:.2f}, gained {hist[-w - 1] - hist[-1]:.3g} over the last {w} iterations, "
+                                f"largest gradient {clock['gmax']:.2g}, {(clock['eval'] - e0) / max(n_ev, 1):.1f} s "
+                                f"per evaluation, {progress.duration(time.time() - t_start)} so far")
             if window and len(hist) > window and hist[-window - 1] - hist[-1] < min_gain:
                 stalled["flag"] = True
                 raise StopIteration
@@ -298,6 +327,9 @@ def fit_model(panel: Panel, spec: ModelSpec, kind: str, x0: np.ndarray | None = 
                         "n_eval": count["n"] - n0, "n_iter": int(r.nit)})
         if ok and (best is None or r.fun < best[0].fun):
             best = (r, stopped)
+        progress.report(f"{where}: ended ({records[-1]['stopped_by']}) after {int(r.nit)} iterations and "
+                        f"{count['n'] - n0} evaluations in {progress.duration(time.time() - t_start)}; log-likelihood "
+                        f"{finals[-1]:.2f}" + ("; the best start so far" if len(starts) > 1 and best and best[0] is r else ""))
     if best is None:
         reason = errors[-1] if errors else "no start could be evaluated"
         return Fit(kind, spec, lay, np.asarray(starts[0], float), -np.inf, False,
@@ -333,6 +365,7 @@ def fit_pair(panel: Panel, spec: ModelSpec, prep: Prepared | None = None, x0_nul
     they are and the caller decides (H-P counts a failed replicate as at least as large).
     """
     prep = prep or prepare(panel, spec.meas_var, spec.n_groups)
+    t0 = time.time()
     sigma_starts = x0_null is None if sigma_starts is None else sigma_starts
     if x0_null is not None:
         null_starts, null_labels = [x0_null], ["warm"]
@@ -344,6 +377,7 @@ def fit_pair(panel: Panel, spec: ModelSpec, prep: Prepared | None = None, x0_nul
     f0 = fit_model(panel, spec, "null", x0=null_starts[0], extra_starts=null_starts[1:], prep=prep,
                    labels=null_labels, **kw)
     if f0.failed:
+        progress.report("the speed-only fit could not be evaluated at any start, so the free fit is not run")
         lay = Layout(spec, "free")
         x = null_to(f0.x, spec, "free")
         return f0, Fit("free", spec, lay, x, -np.inf, False, "not fitted: the speed-only fit failed", 0,
@@ -351,6 +385,12 @@ def fit_pair(panel: Panel, spec: ModelSpec, prep: Prepared | None = None, x0_nul
     f1 = fit_model(panel, spec, "free", x0=null_to(f0.x, spec, "free"), prep=prep,
                    extra_starts=[start_values(panel, spec, "free")] if own_free_start else None,
                    labels=["null embedding", "own default"], **kw)
+    if f1.failed:
+        progress.report(f"the free fit could not be evaluated at any start ({f1.message})")
+    else:
+        progress.report(f"speed-only fit {f0.loglik:.2f}, free fit {f1.loglik:.2f}: likelihood ratio so far "
+                        f"{2 * (f1.loglik - f0.loglik):.2f}"
+                        + ("; next, the speed-only fit restarts from the free fit" if rounds else ""))
     for k in range(rounds):
         if f1.failed:
             break
@@ -359,10 +399,17 @@ def fit_pair(panel: Panel, spec: ModelSpec, prep: Prepared | None = None, x0_nul
         improved = r0.loglik > f0.loglik + tol
         f0 = _merge(f0, r0)
         if not improved:
+            progress.report(f"round {k + 1}: the restart did not improve the speed-only fit by more than {tol:g}, "
+                            "so the fits are final")
             break
+        progress.report(f"round {k + 1}: the speed-only fit improved to {f0.loglik:.2f}; the free fit restarts from it")
         r1 = fit_model(panel, spec, "free", x0=null_to(f0.x, spec, "free"), prep=prep,
                        labels=[f"null embedding, round {k + 1}"], **kw)
         f1 = _merge(f1, r1)
+    if not f1.failed:
+        progress.report(f"both fits done in {progress.duration(time.time() - t0)}: speed-only {f0.loglik:.2f}, "
+                        f"free {f1.loglik:.2f}, likelihood ratio {max(2 * (f1.loglik - f0.loglik), 0.0):.2f}; "
+                        f"{f0.n_eval + f1.n_eval} evaluations")
     return f0, f1
 
 
@@ -373,6 +420,9 @@ def hessian(fit: Fit, panel: Panel, prep: Prepared | None = None, h: float = 1e-
     prep = prep or prepare(panel, fit.spec.meas_var, fit.spec.n_groups)
     n = fit.layout.size
     H = np.zeros((n, n))
+    beat, t0 = progress.Heartbeat(), time.time()
+    progress.report(f"information matrix of the {KIND_NAMES.get(fit.kind, fit.kind)}: {n} coordinates, "
+                    f"{2 * n} evaluations")
     for j in range(n):
         e = np.zeros(n)
         e[j] = h
@@ -381,6 +431,11 @@ def hessian(fit: Fit, panel: Panel, prep: Prepared | None = None, h: float = 1e-
         if vp >= 1e10 or vm >= 1e10:
             raise RuntimeError(f"likelihood not evaluable next to the fit (coordinate {j})")
         H[:, j] = (gp - gm) / (2 * h)
+        if beat.due():
+            spent = time.time() - t0
+            progress.report(f"information matrix: {j + 1} of {n} coordinates in {progress.duration(spent)}, "
+                            f"about {progress.duration(spent / (j + 1) * (n - j - 1))} left")
+    progress.report(f"information matrix done in {progress.duration(time.time() - t0)}")
     return 0.5 * (H + H.T)
 
 

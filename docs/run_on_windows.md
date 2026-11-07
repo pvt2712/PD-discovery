@@ -52,7 +52,7 @@ $env:PYTHONHASHSEED = "0"
 
 `--jobs 5` runs five independent pieces at once, each in its own single-threaded process: the dispersed starts, the profiles and the 40 recovery datasets. This uses the processor far better than one process with many threads, because the engine is limited by memory speed. Every piece has its own seed, so the results do not depend on the number of jobs. Five suits a 6-core processor such as the Ryzen 5 7600 and needs a few GB of the 32 GB of memory; section 4 shows how to check the best number.
 
-- **Leave the window open.** It prints a line each time a piece finishes. Some pieces take hours, so long silences are normal. The same lines are appended to `results\engine_gate\gate_wp0_d10.log`. To follow that log from a second PowerShell window:
+- **Leave the window open.** It prints a line each time a piece finishes, and every running fit adds a progress line every 5 minutes (`--progress-minutes`), labelled with its piece of work, so silences are short. The same lines are appended to `results\engine_gate\gate_wp0_d10.log`. To follow that log from a second PowerShell window:
   ```powershell
   Get-Content C:\work\phenotype-discovery\results\engine_gate\gate_wp0_d10.log -Wait -Tail 20
   ```
@@ -165,37 +165,40 @@ Then put both files in `data\derived\`.
 
 **Development participants only (D33, 6 November 2026).** H-P is now supporting work for Paper 2, and it runs on Paper 2's development participants. The run names its outputs `hp_tdpigd_development.*`, and it refuses a panel built for another set. The old `hp_tdpigd_checkpoint.json` belongs to the whole-cohort run and is never reused; it holds only the zeros, so it can be deleted.
 
-**1. Time one batch first.** This runs the two observed fits, then one batch of bootstrap replicates (six with `--jobs 6`), writes `results\wp4\hp_tdpigd_development_timing.json` and stops:
+**The run (D34, 7 November 2026).** One pair of fits takes days on this PC, not the minute the protocol's budget assumed. So H-P's bootstrap stops at 39 replicates, and the speed estimates get model-based intervals instead of the participant bootstrap (`PROTOCOL.md`, D34). These sizes are the script's defaults:
 
 ```powershell
 cd C:\work\phenotype-discovery
 $env:PYTHONUTF8 = "1"
 $env:PYTHONHASHSEED = "0"
-.\.venv\Scripts\python.exe scripts\run_hp_real.py --set development --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 6 --time-replicate --approval "Investigator, 6 November 2026: Paper 2 protocol approved; H-P on the development participants (D33)"
+.\.venv\Scripts\python.exe scripts\run_hp_real.py --set development --expert configs\expert_map_provisional.json --jobs 6 --approval "Investigator, 6 November 2026: Paper 2 protocol approved; H-P on the development participants (D33); 7 November 2026: sized by D34"
 ```
 
 - **What it does.**
-  - The observed fits now try more starts. The speed-only fit is restarted from the free fit until neither improves.
-  - Each start stops once it gains less than 0.01 in log-likelihood over 100 iterations.
-  - Expect several hours before the first replicate line.
+  1. **The observed fits.** They try several starts, and the speed-only fit is restarted from the free fit until neither improves. Each start stops once it gains less than 0.01 in log-likelihood over 100 iterations. This step takes days, and nothing is saved until both fits are done.
+  2. **H-P's bootstrap.** Up to 39 replicates, six at a time, each in its own single-threaded process (section 4's measurement on this PC chose 6). It stops early once 20 replicates reach the observed statistic. H-P rejects at 5% if at most one of the 39 does.
+  3. **Model-based intervals for the speed estimates.** Both fits' information matrices, then 2,000 draws.
+  4. **The localisation.**
 - **Checks on itself.** The script refuses to run unless `PYTHONHASHSEED` is 0. The bootstrap stops with the reason if its first five replicates all fail, all give 0, or all have fits that never left their start. This is the failure that went unseen on 4–5 November.
-- **What to send.** Copy `hp_tdpigd_development_timing.json` and `hp_tdpigd_development.log` to the Mac and ask Claude to read them. The log's last line gives the minutes per replicate and the most the full run can take. Choose `--n-max` from it.
+- **Time.** Once the first replicates finish, the status file gives the time per replicate and the time left (7d). Every replicate has its own seed, and the stopping rule is applied in replicate order, so the result does not depend on the number of jobs.
+- **The report.**
+  - It gives H-P's p-value from the bootstrap, the χ² p-value beside it as a sensitivity analysis, and the speed estimates with their model-based intervals.
+  - A larger `--n-max` or a `--speed-bootstrap` later continues from the same checkpoint, as a sensitivity analysis. The report keeps the p-value at the cap of 39 as H-P's result.
+- **`--time-replicate`** still runs the observed fits and one batch of replicates, then stops. With the progress lines it is no longer needed.
 
-**2. The full run** is the same command without `--time-replicate`:
+**Switching the run started on 6–7 November.** That run used `--n-max 199 --speed-bootstrap 100 --time-replicate`, before the progress lines and D34.
+1. Wait for the log line `observed fits done`. From that moment the checkpoint holds the observed fits.
+2. Press Ctrl+C in the run's window. Until the first replicate finishes, nothing more is lost.
+3. Update the code (below, "Updating the code mid-run"), without rebuilding anything.
+4. Run the command above. The log should say `bootstrap cap lowered from 199 to 39 before any replicate was drawn`, then `observed fits reused from the checkpoint`.
 
-```powershell
-.\.venv\Scripts\python.exe scripts\run_hp_real.py --set development --expert configs\expert_map_provisional.json --n-max 199 --speed-bootstrap 100 --jobs 6 --approval "Investigator, 6 November 2026: Paper 2 protocol approved; H-P on the development participants (D33)"
-```
-
-It continues from the checkpoint. The observed fits and the timed replicates are reused, not recomputed. `--jobs 6` runs six bootstrap replicates at once, then six speed samples, each in its own single-threaded process; section 4's measurement on this PC chose 6. Every replicate has its own seed and the stopping rule is applied in replicate order, so the result does not depend on the number of jobs.
-
-- **Time.** The timing run tells us; nothing earlier is reliable.
-  - The bootstrap stops once 20 replicates reach the observed statistic. If H-P is far from rejecting, that takes about 40 replicates. If it rejects, it runs to the cap of 199.
-  - The speed bootstrap then adds 100 samples.
+If a replicate had already been saved, the script refuses the lower cap. Ask Claude before going on.
 - **If it stops,** run the same command again.
   - **What is kept.** The checkpoint `results\wp4\hp_tdpigd_development_checkpoint.json` holds the run's settings, the observed fits with their parameters, and every replicate and speed sample. They are all reused while the inputs, map, seed and protocol constants are unchanged. `--jobs` and `--threads` may change.
-  - **What is refused.** A lower `--n-max` than the checkpoint's would give a wrong p-value, so the script refuses it.
-- **Progress** is printed and appended to `results\wp4\hp_tdpigd_development.log`. Each replicate line gives its statistic, its fits' evaluations and its minutes.
+  - **What is refused.** A lower `--n-max` than the checkpoint's, once a replicate has been drawn under it, would give a wrong p-value, so the script refuses it. Before the first replicate it is accepted and recorded (D34).
+  - **Updating the code mid-run.** Stop the run first (Ctrl+C), then `git fetch origin` and `git merge --ff-only origin/phenotype-discovery`, then run the same command. Never update while a run is going: the bootstrap's workers read the code from disk when they start. An update that leaves the data pipeline alone, such as the progress lines of 7 November 2026, needs no rebuild, so don't rebuild: a rebuilt panel is a new file (its hash changes even when its contents do not), and the checkpoint would then be set aside and the run start afresh.
+- **Progress** is printed and appended to `results\wp4\hp_tdpigd_development.log`, and `hp_tdpigd_development_status.txt` holds a snapshot; 7d shows how to read both. Each finished replicate's line gives its statistic, its fits' evaluations and its minutes.
+- **Where a stop loses work.** The observed fits are saved only when both are done, so a stop during them repeats them from the start. A stop during the bootstrap repeats only the replicates in progress.
 - **One run at a time.** Run H-P and the engine gate one after the other: each already uses the processor fully with `--jobs`.
 - **Outputs** are aggregates only: `results\wp4\hp_tdpigd_development.json`, the timing file and the log. The report also records:
   - the settings;
@@ -212,3 +215,36 @@ It continues from the checkpoint. The observed fits and the timed replicates are
 ```
 
 - **Reading the result.** It is exploratory: the map is provisional, and WP1–WP3 come later. The report says so in its first line.
+
+### 7d. Watching the run
+
+Since 7 November 2026 every running fit reports while it works, in this process or in a worker, so the log is never silent for more than a few minutes.
+
+**The log**, `results\wp4\hp_tdpigd_development.log`. Follow it from a second PowerShell window:
+
+```powershell
+Get-Content results\wp4\hp_tdpigd_development.log -Wait -Tail 30
+```
+
+- **Labels.** Each line names its piece of work: `[observed fits]`, `[replicate 12]`, `[speed sample 3]`, `[localisation]`. With `--jobs 6`, six replicates' lines interleave.
+- **What a fit writes:**
+  - when each start begins: its log-likelihood there and the time one evaluation takes;
+  - every 5 minutes: the iteration, the evaluations, the log-likelihood, how much it gained over the last 100 iterations, the largest gradient and the seconds per evaluation. A start ends once it gains less than 0.01 over 100 iterations, so a shrinking gain means the start is nearly done;
+  - when each start ends: what stopped it, its iterations, evaluations and minutes.
+- **After both fits** of a pair: the likelihood ratio so far, each round of restarts, and the final ratio.
+- **The information matrix** (the speed estimates and the localisation) reports the coordinates done and the time left.
+- **A stop** is written with its reason: "stopped by the user", or "stopped by an error" followed by the error.
+
+**The snapshot**, `results\wp4\hp_tdpigd_development_status.txt`, is rewritten as the run goes. It shows:
+- the step: 1 the observed fits, 2 the H-P bootstrap, 3 the speed bootstrap, 4 the localisation (the timing run has only the first two);
+- the counts: replicates done, how many are at or above the observed statistic, and samples done;
+- the time left at the current pace;
+- the latest line of everything still running, and how long ago it came.
+
+To show it and refresh it every minute (Ctrl+C stops the loop, not the run):
+
+```powershell
+while ($true) { Clear-Host; Get-Content results\wp4\hp_tdpigd_development_status.txt; Start-Sleep 60 }
+```
+
+**The interval.** `--progress-minutes 5` is the default; 0 turns the progress lines off. It never changes a result, and the checkpoint does not depend on it, so a run started with other progress settings continues from its checkpoint.

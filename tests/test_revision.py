@@ -289,7 +289,7 @@ def test_the_panel_reports_the_variances_for_the_error_conversion():
 
 # ---------------------------------------------------------------- the run script's checkpoint
 
-def test_the_checkpoint_is_reused_only_for_the_same_run_and_never_with_a_lower_n_max():
+def test_the_checkpoint_is_reused_only_for_the_same_run_and_a_lower_n_max_only_before_any_replicate():
     sys.path.insert(0, str(SCRIPTS))
     import run_hp_real
     out = Path(tempfile.mkdtemp())
@@ -298,6 +298,12 @@ def test_the_checkpoint_is_reused_only_for_the_same_run_and_never_with_a_lower_n
     log = []
     state = run_hp_real.load_checkpoint(path, settings, 199, log.append)
     assert state["replicates"] == [] and state["n_max"] == 199
+    state["observed"] = {"support": [[1]]}
+    path.write_text(json.dumps(state))
+    lowered = run_hp_real.load_checkpoint(path, settings, 39, log.append)      # D34: observed fits, no replicate yet
+    assert lowered["n_max"] == 39 and lowered["observed"] == {"support": [[1]]}
+    assert lowered["n_max_changes"][0]["from"] == 199 and lowered["n_max_changes"][0]["to"] == 39
+    assert "lowered from 199 to 39" in log[-1]
     state["replicates"] = [[1.0, True]]
     path.write_text(json.dumps(state))
     again = run_hp_real.load_checkpoint(path, settings, 299, log.append)

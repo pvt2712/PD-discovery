@@ -15,6 +15,21 @@ for Sp-1, and the per-link localisation. It is an exploratory look, not the regi
 hp_tdpigd_development_timing.json with the full run's estimated length; the same command without it then
 continues from the checkpoint. Progress is printed and appended to <name>.log in the output folder.
 
+Size (protocol D34, [wp4] in the configuration): one pair of fits takes days on the real panel, not
+the minute the protocol's budget assumed, so by default H-P's bootstrap stops at 39 replicates and
+the speed estimates get model-based intervals (draws from the fits' asymptotic normal
+distributions) instead of the participant bootstrap. --n-max and --speed-bootstrap give larger
+runs, which are sensitivity analyses: the report always gives the p-value at D34's cap, from the
+first replicates in order, and the chi-square p-value beside it.
+
+Monitoring: every running fit, in this process or in a worker, writes a line when each start
+begins and ends, and one every --progress-minutes (default 5; 0 turns them off) with its
+iteration, evaluations, log-likelihood and gain over the stopping window. Each line is labelled
+with its piece of work ("observed fits", "replicate 12", "speed sample 3", "localisation").
+<name>_status.txt is a snapshot rewritten as the run goes: the step, the counts, the time left at
+the current pace, and the latest line of everything still running. A stop (Ctrl+C or an error)
+is written to the log with the reason.
+
 Participant set (D33): by default the run uses Paper 2's development participants (training and
 validation; escalation-study-v2/PROTOCOL.md §3.2), so the held-out participants stay unread. It
 reads data/derived/panel_tdpigd_development.npz and panel_spec_development.json, and writes
@@ -29,21 +44,24 @@ replicate repeats exactly the same selection; Step 1's reported map, from all pa
 separate run. The checkpoint holds the run's settings (input hashes, map, seed, protocol
 constants), the observed fits with their parameters, and every bootstrap replicate and speed
 sample. A restart with the same settings reuses all of them; a checkpoint from other settings is
-renamed and kept, and a lower --n-max than the checkpoint's is refused (audit A8). Reports record
-the settings, the code versions used and the fitted parameters.
+renamed and kept. A lower --n-max than the checkpoint's is refused once a replicate has been drawn
+(audit A8); before that it is accepted and recorded. Reports record the settings, the code versions
+used and the fitted parameters.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
+import threading
 import time
+import traceback
 
 import _common
 import numpy as np
 from scipy import stats
 
-from pdx import config, hp, localise, parallel, speed, wp1
+from pdx import config, hp, localise, parallel, progress, speed, wp1
 from pdx.data import load_panel
 from pdx.engine.fit import covariance_checked, fit_from_record, hessian, param_names
 from pdx.engine.likelihood import prepare
@@ -115,12 +133,16 @@ def sp1_interval(f0, panel, level: float) -> list:
     return [float(np.exp(est - z * se)), float(np.exp(est + z * se))]
 
 
-def first_look(panel, spec, support_fn, expert, names, cfg, rng, log, fit_kw: dict | None = None) -> dict:
+def first_look(panel, spec, support_fn, expert, names, cfg, rng, log, fit_kw: dict | None = None,
+               headline=lambda text: None) -> dict:
     """H-P's observed fits only: the statistic with a chi-square p-value, the speed estimates and
     the per-link localisation (the full run adds the bootstrap)."""
     t0 = time.time()
     log("support selection and the two observed fits: started (several hours)")
-    spec_s, f0, f1 = hp.observed_fits(panel, spec, support_fn, fit_kw)
+    headline(f"Step 1 of 2: the observed fits (support selection, then the speed-only and free fits), started "
+             f"{time.strftime('%H:%M')}; they take several hours.")
+    with progress.piece("observed fits"):
+        spec_s, f0, f1 = hp.observed_fits(panel, spec, support_fn, fit_kw)
     lr, df = hp.lr_stat(f0, f1), hp.h_p_df(spec_s)
     p = float(stats.chi2.sf(lr, df))
     log(f"fits done ({(time.time() - t0) / 60:.0f} min): LR {lr:.2f} on {df} df, chi-square p = {p:.3g}")
@@ -132,14 +154,18 @@ def first_look(panel, spec, support_fn, expert, names, cfg, rng, log, fit_kw: di
            "observed_fit_parameters": {"names": param_names(f0.layout), "null": f0.x,
                                        "free_names": param_names(f1.layout), "free": f1.x},
            "support": named_support(spec_s.support, expert, names)}
-    est = speed.speed_estimates(f0, f1, panel)
-    est["sp1_interval_model_based"] = sp1_interval(f0, panel, cfg["speed"]["level"])
+    headline(f"Step 2 of 2: the speed estimates (with the speed-only fit's information matrix) and the "
+             f"localisation (the free fit's information matrix), started {time.strftime('%H:%M')}.")
+    with progress.piece("speed estimates"):
+        est = speed.speed_estimates(f0, f1, panel)
+        est["sp1_interval_model_based"] = sp1_interval(f0, panel, cfg["speed"]["level"])
     out["speed"] = est
     log(f"speed estimates done: Sp-1 = {est['sp1']:.2f} (model-based 95% interval "
         f"{est['sp1_interval_model_based'][0]:.2f}-{est['sp1_interval_model_based'][1]:.2f})")
     prep = prepare(panel, spec_s.meas_var, spec_s.n_groups)
-    links = localise.per_link_tests(f1, panel, cfg["localisation"]["mc_draws"], rng,
-                                    cfg["localisation"]["near_zero"], prep)
+    with progress.piece("localisation"):
+        links = localise.per_link_tests(f1, panel, cfg["localisation"]["mc_draws"], rng,
+                                        cfg["localisation"]["near_zero"], prep)
     out["links_exploratory"] = name_links(localise.classify_links(links, cfg["localisation"]["eps"], "by"), names)
     out["speed_and_load_only"] = localise.speed_and_load_only(links, cfg["localisation"]["eps"])
     out["speed_set"] = links.speed_set
@@ -173,7 +199,10 @@ def run_settings(a, paths, cfg: dict, s1: Step1Config) -> dict:
 def load_checkpoint(path, settings: dict, n_max: int, log) -> dict:
     """The checkpoint if it holds this run (same settings), else a fresh state; a checkpoint from
     other settings is kept beside, renamed, never overwritten. A lower --n-max than the checkpoint's
-    is refused: Besag-Clifford's p-value needs the n_max the replicates were drawn under."""
+    is refused once a replicate has been drawn: Besag-Clifford's p-value needs the n_max the
+    replicates were drawn under, and a cap chosen after seeing some of them could pick the p-value.
+    Before the first replicate it is accepted (D34 lowered the cap after the observed fits had
+    started) and recorded in the checkpoint."""
     fresh = {"format": 2, "settings": settings, "n_max": n_max, "code_versions": [], "replicates": [],
              "replicate_info": []}
     if not path.exists():
@@ -185,10 +214,25 @@ def load_checkpoint(path, settings: dict, n_max: int, log) -> dict:
         log(f"the checkpoint holds another run (other settings, inputs or format); kept as {old.name}, starting afresh")
         return fresh
     if n_max < state["n_max"]:
-        sys.exit(f"Refusing: --n-max {n_max} is below the checkpoint's {state['n_max']}; the p-value needs the "
-                 "n_max the replicates were drawn under. Use at least that, or move the checkpoint away.")
+        if state["replicates"]:
+            sys.exit(f"Refusing: --n-max {n_max} is below the checkpoint's {state['n_max']}, and "
+                     f"{len(state['replicates'])} replicates were drawn under it; the p-value needs the n_max they "
+                     "were drawn under. Use at least that, or move the checkpoint away.")
+        state.setdefault("n_max_changes", []).append(
+            {"from": state["n_max"], "to": n_max, "replicates_drawn": 0, "when": time.strftime("%Y-%m-%d %H:%M")})
+        log(f"bootstrap cap lowered from {state['n_max']} to {n_max} before any replicate was drawn")
     state["n_max"] = n_max
     return state
+
+
+def p_at_cap(replicates: list, observed: float, cap: int, h: int) -> dict | None:
+    """Besag-Clifford's p-value at the cap of D34 from the first replicates in order: H-P's result
+    whatever larger number is drawn later. None while it is still open."""
+    first = [(np.inf if s is None else s, ok) for s, ok in replicates[:cap]]
+    if len(first) < cap and sum(1 for s, ok in first if not ok or s >= observed) < h:
+        return None
+    r = hp.sequential_p(lambda: None, observed, cap, h, resume=first)
+    return {"cap": cap, **{k: r[k] for k in ("p", "n_drawn", "n_exceed", "stopped_early")}}
 
 
 def main():
@@ -208,10 +252,15 @@ def main():
                     help="after the observed fits, run one batch of bootstrap replicates (--jobs of them, at least "
                          f"{hp.GUARD_REPLICATES}), report their time and the full run's estimate, and stop; the "
                          "replicates are kept for the full run")
-    ap.add_argument("--n-max", type=int, default=None, help="H-P bootstrap replicates at most (default: the protocol's)")
-    ap.add_argument("--speed-bootstrap", type=int, default=None, help="speed bootstrap samples (default: the protocol's)")
+    ap.add_argument("--n-max", type=int, default=None,
+                    help="H-P bootstrap replicates at most (default: D34's 39; a larger cap is a sensitivity analysis)")
+    ap.add_argument("--speed-bootstrap", type=int, default=None,
+                    help="participant-bootstrap samples for the speed estimates (default: D34's 0, which gives "
+                         "model-based intervals)")
     ap.add_argument("--threads", type=int, default=None, help="threads for the engine (default: PyTorch's)")
     ap.add_argument("--jobs", type=int, default=1, help="bootstrap replicates and speed samples run this many at once")
+    ap.add_argument("--progress-minutes", type=float, default=5.0,
+                    help="minutes between the progress lines of each running fit (0: none); it never changes a result")
     ap.add_argument("--out", default=str(_common.RESULTS / "wp4"))
     a = ap.parse_args()
     if a.threads:
@@ -226,13 +275,40 @@ def main():
     out = _common.require_inside(_common.Path(a.out), _common.RESULTS, "the output")
     out.mkdir(parents=True, exist_ok=True)
     name = ("hp_first_look" if a.first_look else "hp_tdpigd") + sfx
+    lock = threading.Lock()          # the workers' lines arrive on another thread
 
     def log(message: str) -> None:
         line = f"{time.strftime('%Y-%m-%d %H:%M')}  {message}"
-        print(line, flush=True)
-        with open(out / f"{name}.log", "a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+        with lock:
+            print(line, flush=True)
+            with open(out / f"{name}.log", "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
 
+    board = progress.Board(out / f"{name}_status.txt", f"H-P run {name} (participant set: {a.set})")
+
+    def on_progress(where: str, message: str, event: str) -> None:
+        if event == "line":
+            log(f"[{where}] {message}" if where else message)
+        board.note(where, message, event)
+
+    progress.configure(on_progress if a.progress_minutes > 0 else None, a.progress_minutes)
+    try:
+        analysis(a, paths, out, name, log, board)
+    except KeyboardInterrupt:
+        log("stopped by the user (Ctrl+C); the same command continues from the checkpoint")
+        board.headline("Stopped by the user (Ctrl+C). The same command continues from the checkpoint.")
+        raise
+    except Exception:
+        log("stopped by an error; once it is fixed, the same command continues from the checkpoint\n"
+            + traceback.format_exc())
+        board.headline("Stopped by an error: the log ends with the reason. Once it is fixed, the same command "
+                       "continues from the checkpoint.")
+        raise
+
+
+def analysis(a, paths, out, name: str, log, board) -> None:
+    """The run itself; main parses the arguments and sets up the log, the progress lines and the
+    status file."""
     cfg = config.load()
     panel = load_panel(paths[0])
     pspec = json.loads(paths[1].read_text(encoding="utf-8"))
@@ -252,19 +328,22 @@ def main():
     code = _common.code_version()
     log(f"participant set: {a.set}; panel: {panel.n} participants, {panel.d} domains; map {a.expert} ({int(expert.sum())} links); "
         f"{spec.n_quad} quadrature nodes; load moves with speed: {spec.load_on_speed}; code {code['commit']}")
+    log((f"progress: every running fit adds a line every {a.progress_minutes:g} min" if a.progress_minutes > 0
+         else "progress lines are off") + f"; {name}_status.txt holds a snapshot of the run")
 
     map_status = json.loads(open(a.expert, encoding="utf-8").read()).get("status")
     if a.first_look:
         report = {"status": FIRST_LOOK, "approval": a.approval, "map": a.expert, "map_status": map_status,
                   "settings": settings, "code": code, "counts": panel.aggregate_summary(),
                   "map_links_set_aside": aside,
-                  **first_look(panel, spec, support_fn, expert, names, cfg, rng, log, fit_kw)}
+                  **first_look(panel, spec, support_fn, expert, names, cfg, rng, log, fit_kw, board.headline)}
         (out / f"{name}.json").write_text(json.dumps(_common.to_json(report), indent=1))
         log(f"wrote {out / f'{name}.json'}")
+        board.headline(f"Finished at {time.strftime('%H:%M')}: the first look is in {name}.json.")
         return
 
-    n_max = a.n_max or cfg["hp"]["n_max"]
-    n_speed = cfg["speed"]["bootstrap"] if a.speed_bootstrap is None else a.speed_bootstrap
+    n_max = a.n_max or cfg["wp4"]["n_max"]                      # D34
+    n_speed = cfg["wp4"]["speed_bootstrap"] if a.speed_bootstrap is None else a.speed_bootstrap
     ckpt = out / f"{name}_checkpoint.json"
     state = load_checkpoint(ckpt, settings, n_max, log)
     if code not in state["code_versions"]:
@@ -273,6 +352,7 @@ def main():
     def save_state():
         write_atomic(ckpt, json.dumps(_common.to_json(state)))
 
+    steps = 2 if a.time_replicate else 4
     # the observed fits are kept in the checkpoint, so a restart with the same settings reuses them
     if "observed" in state:
         spec_s = spec.with_support(np.array(state["observed"]["support"], bool))
@@ -281,8 +361,12 @@ def main():
         log(f"observed fits reused from the checkpoint; {len(state['replicates'])} H-P replicates done earlier")
     else:
         log("support selection and the two observed fits: started (several hours)")
+        board.headline(f"Step 1 of {steps}: the observed fits (support selection, then the speed-only and free "
+                       f"fits), started {time.strftime('%H:%M')}; they take several hours. They are saved to the "
+                       f"checkpoint only when both are done.")
         t0 = time.time()
-        fits = hp.observed_fits(panel, spec, support_fn, fit_kw)
+        with progress.piece("observed fits"):
+            fits = hp.observed_fits(panel, spec, support_fn, fit_kw)
         state["observed"] = {"support": fits[0].support.astype(int).tolist(),
                              "null": fits[1].to_record(), "free": fits[2].to_record()}
         save_state()
@@ -303,12 +387,35 @@ def main():
                + (f", {info['seconds'] / 60:.0f} min" if "seconds" in info else ""))
         log(f"H-P bootstrap replicate {drawn} of at most {n_max}: statistic {stat:.2f} ({how}); "
             f"{exceed} of {cfg['hp']['h']} needed to stop are at or above the observed")
+        board.headline(boot_headline(drawn, exceed))
 
     # each replicate has its own seed, so `jobs` of them run at once and Besag-Clifford's rule is
     # applied in replicate order: any jobs >= 2 give identical results (one job, in this process,
     # agrees to the fits' stopping rule)
     done = len(state["replicates"])
     upto = min(n_max, done + max(a.jobs, hp.GUARD_REPLICATES)) if a.time_replicate else n_max
+    h = cfg["hp"]["h"]
+
+    def boot_headline(drawn: int, exceed: int) -> str:
+        """The status file's headline during the bootstrap: counts, pace and the time left."""
+        secs = [i["seconds"] for i in state["replicate_info"] if i and "seconds" in i]
+        per = float(np.median(secs)) if secs else float("nan")
+        left = max(upto - drawn, 0)
+        rows = [f"Step 2 of {steps}: " + ("a timing batch of H-P bootstrap replicates" if a.time_replicate
+                                          else "the H-P bootstrap") + f", {a.jobs} at once",
+                f"  Replicates done: {drawn} of " + (f"{upto} in this batch" if a.time_replicate else f"at most {n_max}"),
+                f"  At or above the observed statistic (LR {lr_obs:.2f}): {exceed}; the bootstrap stops once {h} are"]
+        if secs:
+            rows += [f"  One replicate takes {progress.duration(per)} in a worker (median of {len(secs)})",
+                     f"  Time left: at most {progress.duration(per * np.ceil(left / max(a.jobs, 1)))}"
+                     + ("" if a.time_replicate else f"; less if {h} reach the observed statistic first")]
+        else:
+            rows.append("  Time per replicate and time left: known once the first replicate finishes")
+        return "\n".join(rows)
+
+    log(f"H-P bootstrap: replicates {done + 1} to at most {upto}, {a.jobs} at once; each worker's fits report "
+        f"under [replicate N]")
+    board.headline(boot_headline(done, sum(1 for s, ok in state["replicates"] if not ok or s is None or s >= lr_obs)))
     draws = parallel.ordered(hp.boot_replicate, range(done, upto), a.jobs, hp.boot_setup,
                              (fits[1], panel, spec, expert, s1, fit_kw, a.seed))
     try:
@@ -316,6 +423,7 @@ def main():
                         draw=lambda: next(draws))
     finally:
         draws.close()
+        board.clear()                # the workers have stopped: nothing is running any more
     if a.time_replicate:
         secs = [i["seconds"] for i in state["replicate_info"][done:] if i and "seconds" in i]
         per = float(np.median(secs)) if secs else float("nan")
@@ -328,27 +436,66 @@ def main():
         (out / f"{name}_timing.json").write_text(json.dumps(_common.to_json(timing), indent=1))
         log(f"timing: {per / 60:.0f} min per replicate in a worker; the remaining {timing['remaining_replicates_at_most']} "
             f"replicates take at most {est:.0f} h with {a.jobs} jobs; the replicates are kept for the full run")
+        board.headline(f"Finished the timing batch at {time.strftime('%H:%M')}: {per / 60:.0f} min per replicate in a "
+                       f"worker; the remaining {timing['remaining_replicates_at_most']} replicates take at most {est:.0f} h "
+                       f"with {a.jobs} jobs. Send {name}_timing.json and {name}.log.")
         return
-    log(f"H-P done: p = {res.p:.3g} from {res.n_drawn} bootstrap replicates")
+    df = hp.h_p_df(fits[0])
+    p_chi2 = float(stats.chi2.sf(lr_obs, df))
+    at_cap = p_at_cap(state["replicates"], lr_obs, cfg["wp4"]["n_max"], h)
+    log(f"H-P done: p = {res.p:.3g} from {res.n_drawn} bootstrap replicates"
+        + (f"; at D34's cap of {at_cap['cap']}: p = {at_cap['p']:.3g}" if at_cap and n_max != at_cap["cap"] else "")
+        + f"; chi-square p = {p_chi2:.3g} on {df} df (sensitivity)")
     status = map_status if map_status and map_status.startswith(("PROVISIONAL", "TEMPLATE")) else None
     report = {"status": ("EXPLORATORY: " + status) if status else "map as given", "approval": a.approval,
               "map": a.expert, "map_status": map_status, "settings": settings, "code_versions": state["code_versions"],
               "counts": panel.aggregate_summary(),
-              "hp": {**res.summary(), "n_max": n_max, "h": cfg["hp"]["h"]},
+              "hp": {**res.summary(), "n_max": n_max, "h": h, "n_max_changes": state.get("n_max_changes", []),
+                     "result_at_d34_cap": at_cap,
+                     "p_chi2": p_chi2, "p_chi2_note": "chi-square reference on the selected support's df: a "
+                                                     "sensitivity analysis beside the bootstrap (D34)"},
               "observed_fit_parameters": {"names": param_names(res.null_fit.layout), "null": res.null_fit.x,
                                           "free_names": param_names(res.free_fit.layout), "free": res.free_fit.x},
               "support": res.support.astype(int).tolist(), "support_links": named_support(res.support, expert, names),
               "map_links_set_aside": aside, "bootstrap_lr": res.lr_star}
     spec_s = spec.with_support(res.support)
     if n_speed:
-        report["speed"] = speed.bootstrap_speed(panel, spec_s, res.null_fit, res.free_fit, n_speed, seed=a.seed,
-                                                fit_kw=fit_kw, support=(expert, s1), done=state.get("speed"),
-                                                on_sample=save_speed(state, save_state, n_speed, log), jobs=a.jobs)
-    else:
-        report["speed"] = {"estimates": speed.speed_estimates(res.null_fit, res.free_fit, panel), "B": 0}
+        prior = state.get("speed") or {}
+        k0 = len(prior.get("rows", [])) + prior.get("failures", 0)
+        log(f"speed bootstrap: samples {k0 + 1} to {n_speed}, {a.jobs} at once; each worker's fits report under "
+            f"[speed sample N]")
+        board.headline(f"Step 3 of 4: the speed bootstrap, {a.jobs} at once\n  Samples done: {k0} of {n_speed}\n"
+                       f"  Time left: known once the first samples finish")
+        try:
+            report["speed"] = speed.bootstrap_speed(panel, spec_s, res.null_fit, res.free_fit, n_speed, seed=a.seed,
+                                                    fit_kw=fit_kw, support=(expert, s1), done=state.get("speed"),
+                                                    on_sample=save_speed(state, save_state, n_speed, log,
+                                                                         board.headline, a.jobs, k0),
+                                                    jobs=a.jobs)
+        finally:
+            board.clear()
     prep = prepare(panel, spec_s.meas_var, spec_s.n_groups)
-    links = localise.per_link_tests(res.free_fit, panel, cfg["localisation"]["mc_draws"],
-                                    np.random.default_rng([a.seed, 2]), cfg["localisation"]["near_zero"], prep)
+    if not n_speed:
+        draws = cfg["wp4"]["model_draws"]
+        log(f"speed estimates: model-based intervals (D34) from both fits' information matrices and {draws} draws")
+        board.headline(f"Step 3 of 4: model-based intervals for the speed estimates (D34): the information "
+                       f"matrices of both fits, then {draws} draws; started {time.strftime('%H:%M')}")
+        with progress.piece("speed intervals"):
+            cov_null, info_null = covariance_checked(hessian(res.null_fit, panel, prep),
+                                                     names=param_names(res.null_fit.layout))
+            cov_free, info_free = covariance_checked(hessian(res.free_fit, panel, prep),
+                                                     names=param_names(res.free_fit.layout))
+            report["speed"] = {**speed.model_based(res.null_fit, res.free_fit, panel, cov_null, cov_free,
+                                                   cfg["speed"]["level"], draws, np.random.default_rng([a.seed, 3])),
+                               "information_null": info_null, "information_free": info_free}
+        sp = report["speed"]
+        log(f"speed estimates done: Sp-1 = {sp['estimates']['sp1']:.2f} (model-based 95% interval "
+            f"{sp['sp1_ci'][0]:.2f}-{sp['sp1_ci'][1]:.2f})")
+    board.headline(f"Step 4 of 4: the localisation (the free fit's information matrix, then "
+                   f"{cfg['localisation']['mc_draws']} Monte Carlo draws), started {time.strftime('%H:%M')}")
+    with progress.piece("localisation"):
+        links = localise.per_link_tests(res.free_fit, panel, cfg["localisation"]["mc_draws"],
+                                        np.random.default_rng([a.seed, 2]), cfg["localisation"]["near_zero"], prep)
     report["links_exploratory"] = name_links(localise.classify_links(links, cfg["localisation"]["eps"], "by"), names)
     report["speed_and_load_only"] = localise.speed_and_load_only(links, cfg["localisation"]["eps"])
     report["speed_diagnostics"] = links.diagnostics
@@ -356,15 +503,26 @@ def main():
     report["domains"] = {"names": names, **localise.per_domain_tests(links, spec_s)}
     (out / f"{name}.json").write_text(json.dumps(_common.to_json(report), indent=1))
     log(f"wrote {out / f'{name}.json'}")
+    board.headline(f"Finished at {time.strftime('%H:%M')}: H-P p = {res.p:.3g} from {res.n_drawn} replicates; the "
+                   f"report is {name}.json.")
 
 
-def save_speed(state: dict, save_state, n_speed: int, log):
-    """The speed bootstrap's checkpoint callback."""
+def save_speed(state: dict, save_state, n_speed: int, log, headline=lambda text: None, jobs: int = 1,
+               k0: int = 0):
+    """The speed bootstrap's checkpoint callback; it also refreshes the status file's headline,
+    with the time left at this session's pace (k0 samples were done before it began)."""
+    t0 = time.time()
+
     def on_sample(done):
         state["speed"] = done
         save_state()
-        log(f"speed bootstrap sample {len(done['rows']) + done['failures']} of {n_speed} done "
-            f"({done['failures']} failed so far)")
+        k = len(done["rows"]) + done["failures"]
+        log(f"speed bootstrap sample {k} of {n_speed} done ({done['failures']} failed so far)")
+        new = k - k0
+        left = ("known once the first samples finish" if new < max(jobs, 1) else
+                f"about {progress.duration((time.time() - t0) / new * max(n_speed - k, 0))} at this session's pace")
+        headline(f"Step 3 of 4: the speed bootstrap, {jobs} at once\n  Samples done: {k} of {n_speed} "
+                 f"({done['failures']} failed)\n  Time left: {left}")
     return on_sample
 
 

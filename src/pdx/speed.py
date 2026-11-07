@@ -14,16 +14,24 @@ spreads. Sp-3 is bias-corrected with a one-sided lower bound, and is reported on
 free fits clearly differ: ||A1 - A0|| above the 95th percentile of its centred bootstrap
 distribution ||(A1 - A0)* - (A1 - A0)||. A sample whose fits fail is a failure; a sample that
 re-selects another support is warm-started at the null fit written for that support.
+
+model_based gives the same intervals without refitting (D34, while the participant bootstrap is
+not run): each fit's parameters are drawn from their asymptotic normal distribution, the inverse
+of the observed information, and every estimand is recomputed on each draw. Those intervals hold
+the selected support fixed and trust the model, so they are narrower than the bootstrap's.
 """
 from __future__ import annotations
 
+import time
+from dataclasses import replace
+
 import numpy as np
 
-from . import parallel
+from . import parallel, progress
 from .data import Panel
 from .engine.fit import Fit, fit_pair, remap_support
 from .engine.likelihood import prepare
-from .engine.model import ModelSpec
+from .engine.model import ModelSpec, unpack_numpy
 
 Z90 = 1.2815515655446004
 
@@ -32,17 +40,17 @@ def _y1c(panel: Panel, spec: ModelSpec) -> np.ndarray:
     return prepare(panel, spec.meas_var, spec.n_groups).y1c.numpy()
 
 
-def sp1(null_fit: Fit, panel: Panel) -> float:
+def sp1(null_fit: Fit, panel: Panel, y1c: np.ndarray | None = None) -> float:
     par = null_fit.params
-    y1c = _y1c(panel, null_fit.spec)
+    y1c = _y1c(panel, null_fit.spec) if y1c is None else y1c
     g = panel.group
     shift = par["theta"] @ (y1c[g == 1].mean(0) - y1c[g == 0].mean(0)) if par["theta"].size else 0.0
     return float(np.exp(par["log_speed"][1] + shift))
 
 
-def sp2(null_fit: Fit, panel: Panel) -> dict:
+def sp2(null_fit: Fit, panel: Panel, y1c: np.ndarray | None = None) -> dict:
     par = null_fit.params
-    y1c = _y1c(panel, null_fit.spec)
+    y1c = _y1c(panel, null_fit.spec) if y1c is None else y1c
     g = panel.group
     eta = par["log_speed"][g] + panel.z @ par["beta"] + (y1c @ par["theta"] if par["theta"].size else 0.0)
     sig = par["sigma"]
@@ -66,8 +74,9 @@ def sp3(free_fit: Fit) -> dict:
     return {"s_ls": s_ls, "share": share, "norm_diff": float(np.sqrt(diff))}
 
 
-def speed_estimates(null_fit: Fit, free_fit: Fit, panel: Panel) -> dict:
-    return {"sp1": sp1(null_fit, panel), "sp2": sp2(null_fit, panel), "sp3": sp3(free_fit)}
+def speed_estimates(null_fit: Fit, free_fit: Fit, panel: Panel, y1c: np.ndarray | None = None) -> dict:
+    y1c = _y1c(panel, null_fit.spec) if y1c is None else y1c
+    return {"sp1": sp1(null_fit, panel, y1c), "sp2": sp2(null_fit, panel, y1c), "sp3": sp3(free_fit)}
 
 
 def _flat(e: dict, free_fit: Fit) -> np.ndarray:
@@ -88,7 +97,16 @@ def sample_setup(panel: Panel, spec: ModelSpec, null_fit: Fit, support, fit_kw: 
 
 def bootstrap_sample(shared: dict, b: int):
     """Bootstrap sample b, participants resampled within phenotype with the sample's own random
-    stream: (estimates as one vector, drift difference), or None if the fits fail."""
+    stream: (estimates as one vector, drift difference), or None if the fits fail. Its progress
+    lines are labelled "speed sample b+1"."""
+    t0 = time.time()
+    with progress.piece(f"speed sample {b + 1}"):
+        out = _sample(shared, b)
+        progress.report(f"{'finished' if out is not None else 'failed'} in {progress.duration(time.time() - t0)}")
+    return out
+
+
+def _sample(shared: dict, b: int):
     rng = np.random.default_rng([shared["seed"], 1, b])
     idx = np.concatenate([rng.choice(gi, size=len(gi)) for gi in shared["groups"]])
     bp, spec, support_fn = shared["panel"].subset(idx), shared["spec"], shared["support_fn"]
@@ -132,10 +150,47 @@ def bootstrap_speed(panel: Panel, spec: ModelSpec, null_fit: Fit, free_fit: Fit,
         return {"estimates": est, "B": B, "B_used": 0, "failures": failures,
                 "note": "every bootstrap sample failed, so there are no intervals"}
     R, Dm = np.array(rows), np.array(diffs)
+    return {"estimates": est, "B": B, "B_used": int(len(R)), "failures": failures,
+            **_intervals(est, theta, R, Dm, d_hat, level, panel.n_groups)}
+
+
+def _normal_draws(fit: Fit, cov: np.ndarray, M: int, rng: np.random.Generator) -> np.ndarray:
+    """M draws of the fit's raw parameters from N(x, cov) (cov symmetrised; negative eigenvalues of
+    a near-singular matrix set to zero, as for the localisation's draws)."""
+    V = 0.5 * (cov + cov.T)
+    w, U = np.linalg.eigh(V)
+    return fit.x + rng.normal(size=(M, len(fit.x))) @ (U * np.sqrt(np.maximum(w, 0.0))).T
+
+
+def model_based(null_fit: Fit, free_fit: Fit, panel: Panel, cov_null: np.ndarray, cov_free: np.ndarray,
+                level: float = 0.95, M: int = 2000, rng: np.random.Generator | None = None) -> dict:
+    """Model-based intervals for Sp-1 to Sp-3 (D34): the estimands recomputed on M draws of each
+    fit's parameters from their asymptotic normal distribution (cov_null and cov_free are the
+    inverse information matrices), summarised exactly as the participant bootstrap's samples are."""
+    rng = rng or np.random.default_rng()
+    y1c = _y1c(panel, null_fit.spec)
+    est = speed_estimates(null_fit, free_fit, panel, y1c)
+    theta = _flat(est, free_fit)
+    d_hat = (free_fit.params["A"][1] - free_fit.params["A"][0]).ravel()
+    rows, diffs = [], []
+    for xn, xf in zip(_normal_draws(null_fit, cov_null, M, rng), _normal_draws(free_fit, cov_free, M, rng)):
+        f0 = replace(null_fit, x=xn, params=unpack_numpy(xn, null_fit.layout))
+        f1 = replace(free_fit, x=xf, params=unpack_numpy(xf, free_fit.layout))
+        rows.append(_flat(speed_estimates(f0, f1, panel, y1c), f1))
+        diffs.append((f1.params["A"][1] - f1.params["A"][0]).ravel())
+    return {"estimates": est, "B": 0, "method": "model-based (D34): draws from the fits' asymptotic normal "
+                                                "distributions; the support is held fixed",
+            "draws": M, **_intervals(est, theta, np.array(rows), np.array(diffs), d_hat, level, panel.n_groups)}
+
+
+def _intervals(est: dict, theta: np.ndarray, R: np.ndarray, Dm: np.ndarray, d_hat: np.ndarray, level: float,
+               G: int) -> dict:
+    """Basic intervals from resampled (or drawn) estimands R, rows as _flat; Dm holds their drift
+    differences. Sp-3 is bias-corrected, with its one-sided lower bound and reportability rule."""
     a = (1 - level) / 2
     lo = 2 * theta - np.nanquantile(R, 1 - a, axis=0)
     hi = 2 * theta - np.nanquantile(R, a, axis=0)
-    G, p, d = panel.n_groups, len(est["sp2"]["beta"]), len(est["sp2"]["theta"])
+    p, d = len(est["sp2"]["beta"]), len(est["sp2"]["theta"])
     k = np.cumsum([1, G, p, d, 1, len(np.ravel(est["sp2"]["speed_load_corr"])), 1])
     cut = lambda v: np.split(v, k[:-1])
     L, U = cut(lo), cut(hi)
@@ -144,8 +199,7 @@ def bootstrap_speed(panel: Panel, spec: ModelSpec, null_fit: Fit, free_fit: Fit,
     t_obs = float(np.linalg.norm(d_hat))
     t_null = np.linalg.norm(Dm - d_hat, axis=1)
     clip = lambda v: float(np.clip(v, 0.0, 1.0))
-    return {"estimates": est, "B": B, "B_used": int(len(R)), "failures": failures,
-            "sp1_ci": np.exp([L[0][0], U[0][0]]).tolist(),
+    return {"sp1_ci": np.exp([L[0][0], U[0][0]]).tolist(),
             "sigma_ci": np.exp(np.column_stack([L[1], U[1]])).tolist(),
             "ratio_90_10_ci": np.exp(2 * Z90 * np.exp(np.column_stack([L[1], U[1]]))).tolist(),
             "beta_ci": np.column_stack([L[2], U[2]]).tolist(),

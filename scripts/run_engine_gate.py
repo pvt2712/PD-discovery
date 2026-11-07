@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import threading
 import time
 import traceback
 
 import _common
 import run_power_check
 from _common import code_version
-from pdx import config
+from pdx import config, progress
 from pdx.gate import run_gate
 
 
@@ -35,6 +36,8 @@ def main():
     ap.add_argument("--threads", type=int, default=None, help="threads for the engine (default: PyTorch's)")
     ap.add_argument("--jobs", type=int, default=1,
                     help="dispersed starts, profiles and recovery datasets run this many at once")
+    ap.add_argument("--progress-minutes", type=float, default=5.0,
+                    help="minutes between the progress lines of each running fit (0: none); it never changes a result")
     ap.add_argument("--out", default=str(_common.RESULTS / "engine_gate"))
     a = ap.parse_args()
     if a.threads:
@@ -52,13 +55,22 @@ def main():
     name = ("gate_quick_wp0" if a.wp0 else "gate_quick") if a.quick else name
     partial = out / f"{name}.partial.json"
 
+    lock = threading.Lock()          # the workers' progress lines arrive on another thread
+
     def log(message: str) -> None:
         line = f"{time.strftime('%Y-%m-%d %H:%M')}  {message}"
-        print(line, flush=True)
-        with open(out / f"{name}.log", "a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+        with lock:
+            print(line, flush=True)
+            with open(out / f"{name}.log", "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
 
-    log(f"started; finished work is kept in {partial.name}, so the same command resumes")
+    def on_progress(where: str, message: str, event: str) -> None:
+        if event == "line":
+            log(f"[{where}] {message}" if where else message)
+
+    progress.configure(on_progress if a.progress_minutes > 0 else None, a.progress_minutes)
+    log(f"started; finished work is kept in {partial.name}, so the same command resumes"
+        + (f"; every running fit adds a progress line every {a.progress_minutes:g} min" if a.progress_minutes > 0 else ""))
     try:
         cfg = config.load()
         engine = {"n_quad": cfg["engine"]["n_quad"], "load_on_speed": cfg["engine"]["load_on_speed"]}

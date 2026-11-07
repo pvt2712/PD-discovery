@@ -8,19 +8,26 @@ number of workers gives identical results. One job runs in the calling process w
 which changes the order of summation, so its fits reach the stopping rule (a gain under 0.01 over
 100 iterations) at slightly other points: in a test, H-P's statistic agreed to 1e-3 and Sp-1's
 bootstrap bounds to 0.7% (0.03% with the rule switched off), not bit for bit.
+
+When the calling process reports progress (pdx.progress), the workers report too: their lines
+reach the caller's sink through a queue, so one log holds every worker's lines.
 """
 from __future__ import annotations
 
 import multiprocessing as mp
 import os
 
+from . import progress
+
 THREAD_VARS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
 _shared: dict = {}
 
 
-def _start(setup, args):
+def _start(setup, args, report=None):
     import torch
     torch.set_num_threads(1)
+    if report is not None:                   # (queue, heartbeat seconds): report like the parent
+        progress.configure(progress.queue_sink(report[0]), report[1] / 60.0)
     _shared.clear()
     _shared.update(setup(*args))
 
@@ -45,8 +52,15 @@ def ordered(fn, items, jobs: int, setup, args: tuple = ()):
         return
     saved = {v: os.environ.get(v) for v in THREAD_VARS}
     os.environ.update({v: "1" for v in THREAD_VARS})          # inherited by the workers as they start
+    ctx = mp.get_context("spawn")
+    fwd = progress.Forwarder(ctx) if progress.enabled() else None
     try:
-        pool = mp.get_context("spawn").Pool(min(jobs, len(items)), initializer=_start, initargs=(setup, args))
+        pool = ctx.Pool(min(jobs, len(items)), initializer=_start,
+                        initargs=(setup, args, (fwd.q, progress.every()) if fwd else None))
+    except BaseException:
+        if fwd:
+            fwd.close()
+        raise
     finally:
         for v, old in saved.items():
             if old is None:
@@ -58,6 +72,8 @@ def ordered(fn, items, jobs: int, setup, args: tuple = ()):
     finally:
         pool.terminate()
         pool.join()
+        if fwd:
+            fwd.close()
 
 
 def check_setup(k: float) -> dict:
@@ -68,3 +84,10 @@ def check_setup(k: float) -> dict:
 def check_square(shared: dict, x: float) -> tuple:
     """For the tests: k x squared, with the worker's process id."""
     return shared["k"] * x * x, shared["pid"]
+
+
+def check_report(shared: dict, x: float) -> int:
+    """For the tests: report a line inside a labelled piece of work, return the process id."""
+    with progress.piece(f"item {x}"):
+        progress.report(f"square {shared['k'] * x * x:g}")
+    return shared["pid"]

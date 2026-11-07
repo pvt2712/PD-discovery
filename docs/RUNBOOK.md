@@ -181,20 +181,21 @@ caffeinate -i nohup $PY scripts/run_hp_real.py --expert configs/expert_map.json 
 **The panel build** writes `data/derived/panel_tdpigd.npz`, `panel_spec.json` and the frozen normal-scores tables. It covers TD and PIGD participants seen at year 1. Add `--motor-on` if D5 lets ON-only examinations enter with their state recorded.
 
 **The H-P run:**
-- **Steps.** It runs H-P with its sequential bootstrap (support re-selected in every replicate), then the speed estimates with 200 participant-bootstrap samples, then the anchor-free per-link and per-domain tests with the link classes.
+- **Steps.** It runs H-P with its sequential bootstrap (support re-selected in every replicate), then the speed estimates with their intervals, then the anchor-free per-link and per-domain tests with the link classes.
+- **Size (D34, 7 November 2026).** One pair of fits takes days on the real panel, so by default the bootstrap stops at 39 replicates (smallest p 0.025), and the speed estimates get model-based intervals instead of 200 participant-bootstrap samples (`[wp4]` in `configs/protocol_v0.5.toml`). The report gives the χ² p-value beside H-P's as a sensitivity analysis.
 - **Checks on itself.** The script refuses to run unless `PYTHONHASHSEED=0`. A fit whose start cannot be evaluated is failed, never "converged", and H-P counts its replicate as at least as large as the observed statistic. The bootstrap stops with the reason if its first five replicates all fail, all give exactly 0, or all have fits that never left their start (the PC run of 4–5 November drew 199 zeros unnoticed; protocol Appendix D).
 - **Time it first.** `--time-replicate` runs the observed fits and one batch of replicates (`--jobs` of them, at least five), writes `results/wp4/hp_tdpigd_timing.json` with the full run's longest possible duration, and stops. The same command without the flag then continues from the checkpoint.
 - **Checkpointing.** `results/wp4/hp_tdpigd_checkpoint.json` holds the run's settings, the observed fits with their parameters, and every replicate (with its fits' evaluations and minutes) and speed sample.
 - **Progress** is printed and appended to `results/wp4/hp_tdpigd.log`.
-- **Shorter runs.** `--n-max` caps H-P's bootstrap, for example at 199, which gives p-values down to 0.005. `--speed-bootstrap` sets the number of speed samples. The report records both.
+- **Larger runs.** `--n-max` raises H-P's cap, for example to 199, which gives p-values down to 0.005. `--speed-bootstrap` runs the participant bootstrap of the speed estimates. Both are sensitivity analyses under D34: the report records them, and it keeps the p-value at the cap of 39, from the first replicates in order, as H-P's result.
 - **Restarting.** Run the same command again.
   - **What is reused.** If the settings match, the observed fits and every saved replicate and sample are reused. The settings are the hashes of the panel, its specification and the map, the seed, and the protocol constants that change the fits. `--jobs`, `--threads` and the machine may change.
   - **Other settings.** A checkpoint from other settings is renamed `*.old.json` and kept, and the run starts afresh.
-  - **`--n-max`.** A lower value than the checkpoint's is refused.
+  - **`--n-max`.** A lower value than the checkpoint's is refused once a replicate has been drawn under it. Before that it is accepted and recorded.
 - **Parallel jobs.** `--jobs N` runs N bootstrap replicates, then N speed samples, at once. Each replicate has its own seed, and Besag–Clifford's rule is applied in replicate order, so the p-value does not depend on N, for any N of 2 or more (one job agrees to the stopping rule's tolerance).
 - **Output.** `results/wp4/hp_tdpigd.json`, aggregates only. It also records the settings, the code versions used, each fit's starts and how each stopped, and the fitted parameters.
 - **Fits.** The speed-only fit starts at the default values and with the speed spread at 0.6. The free fit starts at the null solution and at its own default. The speed-only fit is then restarted from the free fit projected onto it, alternating until neither improves by 0.01. Each start stops when it gains less than 0.01 in log-likelihood over 100 iterations, or at 5,000 iterations (`configs/protocol_v0.5.toml`, `[fit]`). A replicate's speed-only fit starts at the fitted null, written for the support it re-selects.
-- **Duration.** Unknown until `--time-replicate` has run at the real size with 20 nodes. H-P stops early once 20 replicates are at least as large as the observed statistic; a rejection runs to `--n-max`.
+- **Duration.** One pair of observed fits takes days on a six-core PC. H-P stops early once 20 replicates are at least as large as the observed statistic; a rejection runs to `--n-max`. The status file gives the time left once the first replicates finish.
 
 Step 1's reported map, the RBD axis and the robustness and sensitivity analyses (§7.10–§7.14) are run with the same modules, as set out in the analysis plan registered at WP2.
 

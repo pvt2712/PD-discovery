@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from . import progress
 from .data import Panel
 from .engine.fit import Fit, fit_pair, remap_support
 from .engine.likelihood import prepare
@@ -98,6 +99,11 @@ def _support(panel: Panel, spec: ModelSpec, support_fn) -> ModelSpec:
     return spec if support_fn is None else spec.with_support(support_fn(panel))
 
 
+def _links(spec: ModelSpec) -> int:
+    """Links between domains in the support (its diagonal holds each domain's own rate)."""
+    return int(spec.support.sum() - spec.d)
+
+
 def fit_info(g0: Fit, g1: Fit) -> dict:
     """What a replicate records about its two fits (evaluations, iterations, how they stopped)."""
     info = {"null_eval": g0.n_eval, "free_eval": g1.n_eval, "null_iter": g0.n_iter, "free_iter": g1.n_iter,
@@ -118,6 +124,9 @@ def _replicate(f0: Fit, panel: Panel, spec: ModelSpec, support_fn, rng, fit_kw, 
         sim = simulate_from_fit(f0, panel, rng)
         spec_b = _support(sim, spec, support_fn)
         changed = not np.array_equal(spec_b.support, f0.spec.support)
+        progress.report("dataset simulated from the fitted speed-only model; support "
+                        + ("kept" if support_fn is None else
+                           f"re-selected: {'changed, ' + str(_links(spec_b)) + ' links' if changed else 'the same as observed'}"))
         warm = remap_support(f0.x, f0.spec, spec_b, "null") if changed else f0.x
         g0, g1 = fit_pair(sim, spec_b, prep=prepare(sim, spec_b.meas_var, spec_b.n_groups),
                           x0_null=warm, **fit_kw)
@@ -144,8 +153,11 @@ def boot_replicate(shared: dict, i: int) -> tuple:
     replicates run at once: (statistic, ok, converged, None, info)."""
     rng = np.random.default_rng([shared["seed"], 3, i])
     t0 = time.time()
-    stat, ok, conv, _, info = _replicate(shared["f0"], shared["panel"], shared["spec"], shared["support_fn"],
-                                         rng, shared["fit_kw"])
+    with progress.piece(f"replicate {i + 1}"):
+        stat, ok, conv, _, info = _replicate(shared["f0"], shared["panel"], shared["spec"], shared["support_fn"],
+                                             rng, shared["fit_kw"])
+        progress.report(f"finished in {progress.duration(time.time() - t0)}: "
+                        + (f"statistic {stat:.2f}" if ok else f"failed ({info.get('error', 'unknown')})"))
     return stat, ok, conv, None, {**info, "seconds": time.time() - t0}
 
 
@@ -184,7 +196,13 @@ def sequential_p(draw, observed: float, n_max: int = 999, h: int = 20, callback=
 def observed_fits(panel: Panel, spec: ModelSpec, support_fn=None, fit_kw: dict | None = None):
     """Support selection and the two observed fits: (spec with the selected support, null, free).
     Raises if either fit failed: there is no statistic to test."""
+    t0 = time.time()
+    if support_fn is not None:
+        progress.report("support selection (Step 1): started")
     spec_s = _support(panel, spec, support_fn)
+    if support_fn is not None:
+        progress.report(f"support selected in {progress.duration(time.time() - t0)}: {_links(spec_s)} links "
+                        f"between domains; next, the speed-only and free fits")
     f0, f1 = fit_pair(panel, spec_s, **(fit_kw or {}))
     for name, f in (("speed-only", f0), ("free", f1)):
         if f.failed:

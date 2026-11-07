@@ -28,6 +28,11 @@ on_when_treated = ["function"]   # rated on medication, so its short-duration te
 bootstrap = 200
 level = 0.95
 
+[wp4]                      # D34 (7 November 2026): the PPMI run, sized by its measured cost, fixed before any development-set statistic
+n_max = 39                 # H-P bootstrap replicates at most (Besag-Clifford, h as above): rejects at 5% when at most 1 reaches the observed; smallest p 0.025
+speed_bootstrap = 0        # participant-bootstrap samples for Sp-1 to Sp-3; 0 gives model-based intervals instead (§2.5 as amended)
+model_draws = 2000         # draws from the fits' asymptotic normal distributions for those intervals
+
 [localisation]             # §7.1, §7.3.2-§7.3.4
 eps = 0.10                 # D12, provisional; 0.05 as sensitivity
 eps_sensitivity = 0.05
