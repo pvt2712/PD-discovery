@@ -30,6 +30,14 @@ with its piece of work ("observed fits", "replicate 12", "speed sample 3", "loca
 the current pace, and the latest line of everything still running. A stop (Ctrl+C or an error)
 is written to the log with the reason.
 
+Proof of concept (D35): --fixed-map keeps the map's links as the support and switches Step 1's
+selection off, in the observed fits and in every bootstrap replicate, so the degrees of freedom
+are fixed. --tag NAME reads the panel built with the same tag (build_analysis_panel.py --tag) and
+adds _NAME to every output, so the 4-domain run (--tag d4) sits beside the 10-domain one:
+
+    python scripts/run_hp_real.py --expert configs/expert_map_provisional.json --tag d4 --fixed-map \
+        --jobs 6 --approval "..."
+
 Participant set (D33): by default the run uses Paper 2's development participants (training and
 validation; escalation-study-v2/PROTOCOL.md §3.2), so the held-out participants stay unread. It
 reads data/derived/panel_tdpigd_development.npz and panel_spec_development.json, and writes
@@ -192,8 +200,9 @@ def run_settings(a, paths, cfg: dict, s1: Step1Config) -> dict:
     return {"participant_set": a.set, "seed": a.seed, "panel_sha256": _common.file_sha256(paths[0]),
             "panel_spec_sha256": _common.file_sha256(paths[1]), "map_sha256": _common.file_sha256(a.expert),
             "engine": cfg["engine"], "fit": cfg["fit"], "treatment": cfg["treatment"], "h": cfg["hp"]["h"],
-            "step1": {"alpha": s1.alpha, "depth": s1.depth, "test": s1.test, "add_interval": s1.add_interval,
-                      "include_dose": s1.include_dose}}
+            "step1": None if getattr(a, "fixed_map", False) else
+            {"alpha": s1.alpha, "depth": s1.depth, "test": s1.test, "add_interval": s1.add_interval,
+             "include_dose": s1.include_dose}}
 
 
 def load_checkpoint(path, settings: dict, n_max: int, log) -> dict:
@@ -261,6 +270,10 @@ def main():
     ap.add_argument("--jobs", type=int, default=1, help="bootstrap replicates and speed samples run this many at once")
     ap.add_argument("--progress-minutes", type=float, default=5.0,
                     help="minutes between the progress lines of each running fit (0: none); it never changes a result")
+    ap.add_argument("--fixed-map", action="store_true",
+                    help="D35: the map's links only, no Step 1 selection (observed fits and every replicate)")
+    ap.add_argument("--tag", default=None,
+                    help="reads panel_tdpigd_<set>_<tag>.npz and its spec and adds _<tag> to the outputs (D35: d4)")
     ap.add_argument("--out", default=str(_common.RESULTS / "wp4"))
     a = ap.parse_args()
     if a.threads:
@@ -268,7 +281,7 @@ def main():
         torch.set_num_threads(a.threads)
     _common.require_approval(a.approval, "the WP4 analysis")
     _common.require_hash_seed()
-    sfx = "" if a.set == "all" else f"_{a.set}"
+    sfx = ("" if a.set == "all" else f"_{a.set}") + (f"_{a.tag}" if a.tag else "")
     a.panel = a.panel or str(_common.DATA / "derived" / f"panel_tdpigd{sfx}.npz")
     a.spec = a.spec or str(_common.DATA / "derived" / f"panel_spec{sfx}.json")
     paths = [_common.require_inside(_common.Path(p), _common.DATA, "inputs") for p in (a.panel, a.spec)]
@@ -323,11 +336,14 @@ def analysis(a, paths, out, name: str, log, board) -> None:
     rng = np.random.default_rng(a.seed)
     s1 = Step1Config(alpha=cfg["step1"]["alpha"], depth=cfg["step1"]["depth_fast"], test=cfg["step1"]["test_fast"],
                      add_interval=a.interval_in_step1, include_dose=a.dose_in_step1)
-    support_fn = make_support_fn(expert, s1)
+    support_fn = None if a.fixed_map else make_support_fn(expert, s1)
+    step1_cfg = None if a.fixed_map else s1        # what the bootstrap and speed samples re-select with
     settings = run_settings(a, paths, cfg, s1)
     code = _common.code_version()
     log(f"participant set: {a.set}; panel: {panel.n} participants, {panel.d} domains; map {a.expert} ({int(expert.sum())} links); "
         f"{spec.n_quad} quadrature nodes; load moves with speed: {spec.load_on_speed}; code {code['commit']}")
+    if a.fixed_map:
+        log(f"support: the map's {int(expert.sum())} links between these domains, fixed (D35); Step 1's selection is off")
     log((f"progress: every running fit adds a line every {a.progress_minutes:g} min" if a.progress_minutes > 0
          else "progress lines are off") + f"; {name}_status.txt holds a snapshot of the run")
 
@@ -360,10 +376,12 @@ def analysis(a, paths, out, name: str, log, board) -> None:
                 fit_from_record(state["observed"]["free"], spec_s))
         log(f"observed fits reused from the checkpoint; {len(state['replicates'])} H-P replicates done earlier")
     else:
-        log("support selection and the two observed fits: started (several hours)")
-        board.headline(f"Step 1 of {steps}: the observed fits (support selection, then the speed-only and free "
-                       f"fits), started {time.strftime('%H:%M')}; they take several hours. They are saved to the "
-                       f"checkpoint only when both are done.")
+        what = "the two observed fits" if a.fixed_map else "support selection and the two observed fits"
+        log(f"{what}: started (several hours)")
+        board.headline(f"Step 1 of {steps}: the observed fits ("
+                       + ("the map fixed; " if a.fixed_map else "support selection, then ")
+                       + f"the speed-only and free fits), started {time.strftime('%H:%M')}; they take several hours. "
+                       f"They are saved to the checkpoint only when both are done.")
         t0 = time.time()
         with progress.piece("observed fits"):
             fits = hp.observed_fits(panel, spec, support_fn, fit_kw)
@@ -417,7 +435,7 @@ def analysis(a, paths, out, name: str, log, board) -> None:
         f"under [replicate N]")
     board.headline(boot_headline(done, sum(1 for s, ok in state["replicates"] if not ok or s is None or s >= lr_obs)))
     draws = parallel.ordered(hp.boot_replicate, range(done, upto), a.jobs, hp.boot_setup,
-                             (fits[1], panel, spec, expert, s1, fit_kw, a.seed))
+                             (fits[1], panel, spec, expert, step1_cfg, fit_kw, a.seed))
     try:
         res = hp.run_hp(panel, spec, support_fn, upto, cfg["hp"]["h"], callback=save, resume=resume, fits=fits,
                         draw=lambda: next(draws))
@@ -468,7 +486,8 @@ def analysis(a, paths, out, name: str, log, board) -> None:
                        f"  Time left: known once the first samples finish")
         try:
             report["speed"] = speed.bootstrap_speed(panel, spec_s, res.null_fit, res.free_fit, n_speed, seed=a.seed,
-                                                    fit_kw=fit_kw, support=(expert, s1), done=state.get("speed"),
+                                                    fit_kw=fit_kw, support=None if a.fixed_map else (expert, s1),
+                                                    done=state.get("speed"),
                                                     on_sample=save_speed(state, save_state, n_speed, log,
                                                                          board.headline, a.jobs, k0),
                                                     jobs=a.jobs)

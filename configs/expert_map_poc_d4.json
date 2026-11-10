@@ -1,0 +1,94 @@
+{
+ "status": "PROOF OF CONCEPT (D35, 10 November 2026): the links of the provisional, investigator-led map (configs/expert_map_provisional.json, D25) between the four domains of the proof of concept, taken unchanged, before any 4-domain result on PPMI was seen. Used with --fixed-map: Step 1 adds no links.",
+ "format": "links are [from, to] pairs of domain names, read as: 'from' this year directly changes 'to' next year. Every domain also affects itself (own rates, always in the support). With --fixed-map, H-P's support is exactly these links plus the four own rates: 7 entries, so H-P has (2 - 1) x (7 - 1) = 6 degrees of freedom.",
+ "domains": [
+  "tremor",
+  "brady_rigidity",
+  "axial",
+  "function"
+ ],
+ "links": [
+  [
+   "tremor",
+   "function"
+  ],
+  [
+   "brady_rigidity",
+   "function"
+  ],
+  [
+   "axial",
+   "function"
+  ]
+ ],
+ "set_aside_from_the_provisional_map": [
+  [
+   "axial",
+   "independence"
+  ],
+  [
+   "function",
+   "independence"
+  ],
+  [
+   "cognition",
+   "independence"
+  ],
+  [
+   "mood",
+   "function"
+  ],
+  [
+   "mood",
+   "independence"
+  ],
+  [
+   "autonomic",
+   "function"
+  ],
+  [
+   "function",
+   "mood"
+  ],
+  [
+   "cognition",
+   "function"
+  ],
+  [
+   "rbd",
+   "cognition"
+  ],
+  [
+   "autonomic",
+   "cognition"
+  ],
+  [
+   "axial",
+   "cognition"
+  ]
+ ],
+ "provenance": [
+  {
+   "link": [
+    "tremor",
+    "function"
+   ],
+   "source": "v4.1 motor_na -> adl (STRONG; PMID 18361474, 24711047, 29662921); questionnaire #1",
+   "note": "motor_na includes the tremor items; the function domain leaves out MDS-UPDRS 2.10 (tremor), so there is no part-whole overlap"
+  },
+  {
+   "link": [
+    "brady_rigidity",
+    "function"
+   ],
+   "source": "v4.1 motor_na -> adl (STRONG; as above); questionnaire #2"
+  },
+  {
+   "link": [
+    "axial",
+    "function"
+   ],
+   "source": "v4.1 axial -> adl (STRONG; PMID 18361474 Shulman, 18307261 Hely); questionnaire #3"
+  }
+ ]
+}

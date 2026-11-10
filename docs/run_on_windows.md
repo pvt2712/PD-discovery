@@ -248,3 +248,32 @@ while ($true) { Clear-Host; Get-Content results\wp4\hp_tdpigd_development_status
 ```
 
 **The interval.** `--progress-minutes 5` is the default; 0 turns the progress lines off. It never changes a result, and the checkpoint does not depend on it, so a run started with other progress settings continues from its checkpoint.
+
+### 7e. The proof of concept (D35, 10 November 2026)
+
+Experiment 1 is now a proof of concept (`PROTOCOL.md` §19): H-P on four domains with a fixed map. It replaces the 10-domain run.
+
+1. **Stop the 10-domain run** with Ctrl+C in its window. Keep its files: `results\wp4\hp_tdpigd_development_checkpoint.json` holds the observed fits, which Paper 2's speed step and the full-model first look use. Don't start the 10-domain command again.
+2. **Update the code**, without rebuilding anything:
+   ```powershell
+   cd D:\PhD\PD
+   git fetch origin
+   git merge --ff-only origin/phenotype-discovery
+   ```
+3. **Build the 4-domain panel** beside the 10-domain one. It reads the PPMI tables already in `data\derived`:
+   ```powershell
+   $env:PYTHONUTF8 = "1"
+   $env:PYTHONHASHSEED = "0"
+   .\.venv\Scripts\python.exe scripts\build_analysis_panel.py --set development --domains tremor brady_rigidity axial function --tag d4 --approval "Investigator, 10 November 2026: proof of concept on four domains (D35)"
+   ```
+   It writes `panel_tdpigd_development_d4.npz`, `panel_spec_development_d4.json` and `normal_scores_development_d4.npz` in `data\derived`, and leaves the 10-domain files untouched.
+4. **Run H-P:**
+   ```powershell
+   .\.venv\Scripts\python.exe scripts\run_hp_real.py --set development --tag d4 --fixed-map --expert configs\expert_map_poc_d4.json --jobs 6 --approval "Investigator, 10 November 2026: proof of concept on four domains (D35)"
+   ```
+   - **The first lines of the log** should give 4 domains, the map with 3 links, and `support: the map's 3 links between these domains, fixed (D35)`.
+   - **Outputs** are `results\wp4\hp_tdpigd_development_d4.*`: the log, the status file, the checkpoint and the report. Watch them as in 7d, with `_d4` in the file names.
+   - **Time.** On synthetic data at this size a pair of fits took about 4 minutes on one core; PPMI fits are slower. Expect the observed fits within a few hours and the 39 replicates within about a day. The status file gives the time left once the first replicates finish.
+5. **Send back** `hp_tdpigd_development_d4.json` and `hp_tdpigd_development_d4.log`. They hold aggregates only.
+
+The simulation part of the proof (`scripts/run_poc_simulation.py`) uses synthetic data only and runs on the Mac.

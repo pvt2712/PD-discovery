@@ -16,8 +16,13 @@ unread. Their scores also never shape the normal-scores tables or the error vari
 builds the earlier whole-cohort panel under the old file names (panel_tdpigd.npz and so on); no
 analysis approved after 6 November 2026 uses it.
 
+--tag NAME adds _NAME to every file name, so a panel on other domains sits beside the main one
+instead of replacing it: the proof of concept (D35) builds its 4-domain panel with
+--domains tremor brady_rigidity axial function --tag d4, leaving the 10-domain development panel,
+which Paper 2's speed step checks against its checkpoint, untouched.
+
     python scripts/build_analysis_panel.py --approval "<who, date, document>" \
-        [--set development|all] [--domains tremor brady_rigidity ...] \
+        [--set development|all] [--domains tremor brady_rigidity ...] [--tag d4] \
         [--measurement configs/measurement_error.json] [--motor-on]
 """
 from __future__ import annotations
@@ -44,6 +49,7 @@ def main():
     ap.add_argument("--motor-on", action="store_true", help="D5 option: ON-only examinations enter with on = 1")
     ap.add_argument("--set", choices=["development", "all"], default="development",
                     help="participants: Paper 2's development sets (D33; the default) or everyone (the old panel)")
+    ap.add_argument("--tag", default=None, help="adds _TAG to the file names (D35: d4 for the 4-domain panel)")
     a = ap.parse_args()
     _common.require_approval(a.approval, "the analysis-panel build")
     d = _common.DATA / "derived"
@@ -53,7 +59,7 @@ def main():
     if a.set != "all":
         part = part[split.in_sets(part.PATNO, a.set)]
         grid = grid[grid.PATNO.isin(set(part.PATNO))]
-    sfx = "" if a.set == "all" else f"_{a.set}"
+    sfx = ("" if a.set == "all" else f"_{a.set}") + (f"_{a.tag}" if a.tag else "")
     split_record = {"participant_set": a.set, "sets": list(split.NAMED[a.set]), "rule": f"SHA-256('{split.SALT}:' + PATNO), "
                     f"first 15 hex digits / 16^15; training < {split.CUTS[0]}, validation < {split.CUTS[1]}",
                     "participants_by_set_in_the_tables": every,

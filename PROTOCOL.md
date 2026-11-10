@@ -4,6 +4,8 @@
 >
 > v0.5 narrows the study to one primary test: whether TD and PIGD share one progression mechanism up to a difference in speed (H-P). Speed itself becomes a family of key secondary estimates (§2.5). v0.5 also takes in an external deep review of v0.4.1. Since v0.4, the protocol has followed the framework recommended in the investigation report (`docs/pathway_heterogeneity_framework.md`): speed-adjusted subgroup causal discovery. Its companion documents are the methods and novelty addendum (`docs/methods_and_novelty_update.md`), the Step 2 methods note (`docs/step2_comparison_methods.md`) and the tsLDiffPC/tsDCI note (`docs/tsldiffpc_tsdci_investigation.md`).
 >
+> **Scope since 10 November 2026 (D35).** Experiment 1 is a proof of concept. H-P and the speed estimates run on four domains with a fixed map, and a simulation at the same size shows the test's false-positive rate and power (§19). The full design below stays as the plan for later work.
+>
 > Appendix D lists the changes from v0.3, v0.4 and v0.4.1, which are archived in `docs/archive/`. Appendix E summarises the synthetic evidence behind the design.
 >
 > Part I is Paper 2, experiment 1. Part II goes ahead only if Part I passes its gate (§13), and it needs its own data access, funding and ethics approval. Thresholds marked *provisional* are fixed at registration, or by the pre-registered WP3 algorithms (§3, §17).
@@ -1331,6 +1333,7 @@ Part I's map informs the choice of confounders; it gives no causal licence by it
 | D32 | Quadrature nodes | 20, checked against 30 and 40 at the engine gate. At the real size 12 nodes missed the gate's own agreement rule (audit A7) | Investigator | 5 November 2026 |
 | D33 | The place of this study after Paper 2 moved to effect estimation | This protocol becomes supporting work for the thesis (the experiment 1 paper); Paper 2's protocol is `../escalation-study-v2/PROTOCOL.md`. H-P and the speed estimands run on that protocol's development participants only (its training and validation sets, assigned by a keyed hash of the participant number), so its held-out set stays unread until Paper 2's freeze. The PC full run waits for the participant filter. Everything else here is unchanged | Investigator | 6 November 2026, with the approval of Paper 2's protocol |
 | D34 | The size of the bootstraps on PPMI | The fits cost far more than §8.8 assumed (§8.8, "Measured cost on PPMI"), so on PPMI H-P's bootstrap stops at 39 replicates (Besag–Clifford, h = 20; smallest p 0.025), and that capped bootstrap is H-P's result. The speed estimates get model-based intervals (§2.5), and the χ² p-value is reported beside H-P's as a sensitivity analysis. A larger bootstrap and the participant bootstrap of the speed estimates may follow when the result has been seen. They are sensitivity analyses, reported beside these results and never replacing them. The report always gives the p-value at the cap of 39, from the first replicates in order, however many are drawn later. Fixed before any statistic on the development participants had been seen | Investigator | 7 November 2026 |
+| D35 | Scope of experiment 1 | A proof of concept of the framework (§19). On PPMI, H-P and the speed estimates run on four domains (tremor, bradykinesia–rigidity, axial, daily function), with the fixed map of `configs/expert_map_poc_d4.json`: the provisional map's three links between them plus the four own rates, 6 degrees of freedom, and no Step 1 selection. They keep D34's capped bootstrap and model-based intervals. A simulation at the development panel's size gives H-P's false-positive rate when only speed differs (at most 7.5%) and its power when one link differs. The 10-domain run, stopped on 10 November 2026, is reported beside it as the full-model first look. The other six domains, Step 1's selection, the speed bootstrap, Steps 3–4, the RBD axis, the comparators and the full WP3 are left for later. Fixed before any 4-domain result on PPMI had been seen | Investigator | 10 November 2026 |
 
 ## 18. Timeline (provisional)
 
@@ -1346,6 +1349,33 @@ Part I's map informs the choice of confounders; it gives no causal licence by it
 | 19–22 | WP5 blinded review, replication, robustness and sensitivity analyses, comparison with the forecasts; the exploratory extensions if time allows |
 | 22–26 | WP6 manuscripts |
 | After week 22, if the gate passes | Part II: external-cohort application and the II-a and II-b protocols, over months; II-c and II-d as separately funded protocols, over years |
+
+## 19. Proof of concept (D35, 10 November 2026)
+
+On 10 November 2026 the investigator re-scoped experiment 1: it is to prove the framework, not answer every question in full. The cost was measured on the 10-domain run (§8.8, D34). The full design above stays as the plan for later work. This section was fixed before any 4-domain result on PPMI had been seen.
+
+**19.1 On PPMI**
+- **Participants.** The development participants (D33), as before.
+- **Domains.** Tremor, bradykinesia–rigidity, axial and daily function: the motor and functional domains of the TD/PIGD question. The panel is built beside the 10-domain one, with `scripts/build_analysis_panel.py --domains tremor brady_rigidity axial function --tag d4`.
+- **Map.** `configs/expert_map_poc_d4.json` holds the provisional map's three links between these domains, unchanged: tremor, bradykinesia–rigidity and axial each feed daily function. Each domain also keeps its own rate. The map is fixed (`--fixed-map`): Step 1 adds no links, in the observed fits or in any replicate.
+- **Model and fitting.** As in §7.1, with the `[engine]` and `[fit]` constants: per-participant speed and load, measurement error, the D24 treatment terms, 20 quadrature nodes, λ = 0 (D31) and the window rule.
+- **H-P.** The likelihood ratio has (2 − 1) × (7 − 1) = 6 degrees of freedom. It is referred to the capped bootstrap of D34 (39 replicates, without re-selection), with the χ² p-value beside it.
+- **Speed and localisation.** Sp-1 to Sp-3 get model-based intervals (D34), and the per-link localisation (§7.3.3) is exploratory.
+- **Left for later.** The other six domains, Step 1's selection, the participant bootstrap of the speed estimates, Steps 3–4, the RBD axis, the named comparators and the full WP3 qualification.
+
+**19.2 The simulation that proves the framework** (`scripts/run_poc_simulation.py`; synthetic data only)
+- **Data.** The panels have the development panel's size (686 participants, TD and PIGD in WP0's proportions), with WP0's visits per participant and missing shares. They come from the 4-domain preset of the family A simulator: tremor and axial feed daily function, which feeds independence. The analysis map adds the candidate link from axial to independence, giving 8 entries and 7 degrees of freedom. This is the same kind of structure and size as the PPMI map, but not the same map.
+- **Analysis.** As on PPMI: the map fixed, 20 nodes, λ = 0 and the `[fit]` rules.
+- **S1, speed only (200 datasets).**
+  - PIGD runs the same mechanism faster, and speeds vary between participants.
+  - Each dataset also draws one bootstrap replicate from its own fitted null. The replicates pooled across datasets give the bootstrap's critical value (warp-speed method; Giacomini 2013).
+  - The criterion: H-P's false-positive rate is at most 7.5% (Bradley's bound, §8.7), reported with its Monte Carlo standard error and with the χ² rate beside it.
+- **S2, one link differs (100 datasets).** The link from daily function to independence is stronger in PIGD by 2ε beyond speed. Power is reported against the bootstrap's and the χ² critical values, with no threshold.
+- **Speed.** The estimated speed ratio is compared with the true one.
+- **Failed datasets** count against H-P: as a rejection under S1 and as a miss under S2.
+- **Why the speed is per participant.** Appendix E: a test with one speed per phenotype rejected 10.5% of speed-only cohorts at the base size, and up to 65% at 16 times that size, against 4.6% for the per-participant test.
+
+**19.3 Reporting.** The proof of concept is the simulation (19.2) together with the PPMI result (19.1). The 10-domain run (D33–D34), stopped on 10 November 2026 during its bootstrap, is reported beside it as the full-model first look: its observed statistic with the χ² p-value, the bootstrap not completed.
 
 ## References
 
@@ -1571,6 +1601,15 @@ Aggregates from `../escalation-discovery` (its PROTOCOL.md §3, §10.1 and §12,
 | Provenance | Entry date, correction history, instrument version | Audit trail and quality flags |
 
 ## Appendix D. Changes from v0.3, v0.4 and v0.4.1
+
+**After v0.5 (10 November 2026): D35, a proof of concept.**
+- **Why.** On the investigator's PC, the 10-domain run's observed fits took 39.7 hours, and its bootstrap replicates took 2.5–3.5 days each, about three weeks in all. On synthetic data at the same size, one likelihood evaluation costs about a tenth as much at four domains as at ten. A whole fit pair took about 4 minutes on one core.
+- **What changes.** Experiment 1 becomes a proof of concept (§19): four domains with a fixed map on PPMI, and a simulation of H-P's false-positive rate and power at the same size. The investigator chose the four domains, stopping the 10-domain run, and writing this decision.
+- **Code.**
+  - `--domains` and `--tag d4` in `scripts/build_analysis_panel.py`, so the 4-domain panel sits beside the 10-domain one, which Paper 2's speed step checks against its checkpoint.
+  - `--fixed-map` and `--tag` in `scripts/run_hp_real.py`.
+  - The map in `configs/expert_map_poc_d4.json`.
+  - The simulation in `scripts/run_poc_simulation.py`.
 
 **After v0.5 (7 November 2026): D34, the size of the bootstraps on PPMI.** The development run's observed fits had taken more than 14 hours without leaving the speed-only fit's first two starts, so the 999-replicate H-P bootstrap and the 200-sample speed bootstrap would take months on the investigator's PC. The decision was made before any statistic on the development participants had been seen:
 - **H-P.** On PPMI the bootstrap stops at 39 replicates (§7.3.1), and that capped bootstrap is H-P's result. The χ² p-value is reported beside it as a sensitivity analysis.
