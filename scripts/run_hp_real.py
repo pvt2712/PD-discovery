@@ -38,6 +38,10 @@ adds _NAME to every output, so the 4-domain run (--tag d4) sits beside the 10-do
     python scripts/run_hp_real.py --expert configs/expert_map_provisional.json --tag d4 --fixed-map \
         --jobs 6 --approval "..."
 
+Groups (D36): the panel's spec names the two groups (build_analysis_panel.py --group-by: TD/PIGD,
+age at onset, sex or probable RBD); the log and the report say which, and the speed ratio is group 1
+against group 0.
+
 Participant set (D33): by default the run uses Paper 2's development participants (training and
 validation; escalation-study-v2/PROTOCOL.md §3.2), so the held-out participants stay unread. It
 reads data/derived/panel_tdpigd_development.npz and panel_spec_development.json, and writes
@@ -330,6 +334,7 @@ def analysis(a, paths, out, name: str, log, board) -> None:
         sys.exit(f"Refusing: the panel was built for the participant set '{built_for}', and this run asks for "
                  f"'{a.set}'. Rebuild it with scripts/build_analysis_panel.py --set {a.set}.")
     names = pspec["domains"]
+    grouping = pspec.get("grouping") or {"by": "phenotype", "group_0": "TD", "group_1": "PIGD"}
     expert, aside = expert_support(a.expert, names)
     spec = build_spec(panel, pspec, names, expert, cfg)
     fit_kw = dict(cfg["fit"])
@@ -342,6 +347,7 @@ def analysis(a, paths, out, name: str, log, board) -> None:
     code = _common.code_version()
     log(f"participant set: {a.set}; panel: {panel.n} participants, {panel.d} domains; map {a.expert} ({int(expert.sum())} links); "
         f"{spec.n_quad} quadrature nodes; load moves with speed: {spec.load_on_speed}; code {code['commit']}")
+    log(f"groups ({grouping['by']}): 0 = {grouping['group_0']}, 1 = {grouping['group_1']}; the speed ratio is 1 against 0")
     if a.fixed_map:
         log(f"support: the map's {int(expert.sum())} links between these domains, fixed (D35); Step 1's selection is off")
     log((f"progress: every running fit adds a line every {a.progress_minutes:g} min" if a.progress_minutes > 0
@@ -350,7 +356,7 @@ def analysis(a, paths, out, name: str, log, board) -> None:
     map_status = json.loads(open(a.expert, encoding="utf-8").read()).get("status")
     if a.first_look:
         report = {"status": FIRST_LOOK, "approval": a.approval, "map": a.expert, "map_status": map_status,
-                  "settings": settings, "code": code, "counts": panel.aggregate_summary(),
+                  "settings": settings, "code": code, "grouping": grouping, "counts": panel.aggregate_summary(),
                   "map_links_set_aside": aside,
                   **first_look(panel, spec, support_fn, expert, names, cfg, rng, log, fit_kw, board.headline)}
         (out / f"{name}.json").write_text(json.dumps(_common.to_json(report), indent=1))
@@ -467,7 +473,7 @@ def analysis(a, paths, out, name: str, log, board) -> None:
     status = map_status if map_status and map_status.startswith(("PROVISIONAL", "TEMPLATE")) else None
     report = {"status": ("EXPLORATORY: " + status) if status else "map as given", "approval": a.approval,
               "map": a.expert, "map_status": map_status, "settings": settings, "code_versions": state["code_versions"],
-              "counts": panel.aggregate_summary(),
+              "grouping": grouping, "counts": panel.aggregate_summary(),
               "hp": {**res.summary(), "n_max": n_max, "h": h, "n_max_changes": state.get("n_max_changes", []),
                      "result_at_d34_cap": at_cap,
                      "p_chi2": p_chi2, "p_chi2_note": "chi-square reference on the selected support's df: a "

@@ -16,6 +16,11 @@ unread. Their scores also never shape the normal-scores tables or the error vari
 builds the earlier whole-cohort panel under the old file names (panel_tdpigd.npz and so on); no
 analysis approved after 6 November 2026 uses it.
 
+--group-by sets the two groups (D36): phenotype (TD/PIGD, the default), age_onset (split at the
+median age at onset, or --age-cut), sex (men/women) or rbd (baseline RBD screening questionnaire
+score of --rbd-cut, 6 by default, or more). Any grouping but phenotype needs --tag, so it never
+replaces the main panel; the D36 runs use --tag d4_age, d4_sex and d4_rbd.
+
 --tag NAME adds _NAME to every file name, so a panel on other domains sits beside the main one
 instead of replacing it: the proof of concept (D35) builds its 4-domain panel with
 --domains tremor brady_rigidity axial function --tag d4, leaving the 10-domain development panel,
@@ -23,6 +28,7 @@ which Paper 2's speed step checks against its checkpoint, untouched.
 
     python scripts/build_analysis_panel.py --approval "<who, date, document>" \
         [--set development|all] [--domains tremor brady_rigidity ...] [--tag d4] \
+        [--group-by phenotype|age_onset|sex|rbd] [--rbd-cut 6] [--age-cut YEARS] \
         [--measurement configs/measurement_error.json] [--motor-on]
 """
 from __future__ import annotations
@@ -50,7 +56,13 @@ def main():
     ap.add_argument("--set", choices=["development", "all"], default="development",
                     help="participants: Paper 2's development sets (D33; the default) or everyone (the old panel)")
     ap.add_argument("--tag", default=None, help="adds _TAG to the file names (D35: d4 for the 4-domain panel)")
+    ap.add_argument("--group-by", choices=list(ppmi.GROUPINGS), default="phenotype",
+                    help="the two groups H-P compares (D36); any but phenotype needs --tag")
+    ap.add_argument("--rbd-cut", type=float, default=6.0, help="--group-by rbd: questionnaire score for probable RBD")
+    ap.add_argument("--age-cut", type=float, default=None, help="--group-by age_onset: default the median")
     a = ap.parse_args()
+    if a.group_by != "phenotype" and not a.tag:
+        ap.error("--group-by other than phenotype needs --tag (for example d4_age), so the main panel is kept")
     _common.require_approval(a.approval, "the analysis-panel build")
     d = _common.DATA / "derived"
     part = pd.read_parquet(d / "participants.parquet")
@@ -66,7 +78,8 @@ def main():
                     "assignment_sha256_of_the_participants_used": split.assignment_sha256(part.PATNO)}
     print(f"participant set: {a.set} ({' + '.join(split.NAMED[a.set])}): {len(part)} of {sum(every.values())} participants "
           f"in the tables")
-    panel, ns, info = ppmi.analysis_panel(part, grid, a.domains, a.motor_on)
+    panel, ns, info = ppmi.analysis_panel(part, grid, a.domains, a.motor_on, group_by=a.group_by,
+                                          rbd_cut=a.rbd_cut, age_cut=a.age_cut)
     meas = json.loads(open(a.measurement, encoding="utf-8").read())
     unreliable = {dn: float(meas["error_variance"][dn]) for dn in a.domains}       # 1 - reliability
     # audit A5: a reliability is a share of its sample's variance; on the pooled scale (all visits,
@@ -87,6 +100,8 @@ def main():
                         **{f"scores_{j}": sc for j, (_, sc) in enumerate(ns.tables)})
     (d / f"panel_spec{sfx}.json").write_text(json.dumps(_common.to_json(spec), indent=1))
     print(f"wrote data/derived/panel_tdpigd{sfx}.npz, panel_spec{sfx}.json and normal_scores{sfx}.npz")
+    gr = info["grouping"]
+    print(f"grouping ({gr['by']}): 0 = {gr['group_0']}, 1 = {gr['group_1']}")
     print("panel:", json.dumps(info["counts"]))
     print("error variances:", json.dumps(dict(zip(a.domains, [round(v, 3) for v in mv]))))
     if thin:

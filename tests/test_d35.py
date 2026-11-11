@@ -61,3 +61,18 @@ def test_the_poc_simulation_mirrors_the_ppmi_analysis():
     assert s["S1_speed_only"]["failed"] == 1
     assert abs(s["S1_speed_only"]["false_positives_bootstrap"]["rate"] - 2 / 3) < 1e-12   # the failure counts
     assert s["S2_one_link_differs"]["power_chi2"]["rate"] == 1.0
+
+
+def test_nearly_flat_directions_do_not_swamp_the_covariance():
+    """A parameter with (almost) no information, like a short-duration treatment effect on domains
+    examined only OFF, must not get a variance of 1e19 that leaks into every other direction."""
+    import numpy as np
+    from pdx.engine.fit import covariance_checked
+    rng = np.random.default_rng(0)
+    Q, _ = np.linalg.qr(rng.normal(size=(4, 4)))
+    H = (Q * np.array([5e3, 40.0, 2.0, 2e-19])) @ Q.T           # one direction the data say nothing about
+    V, info = covariance_checked(H, names=["a", "b", "c", "k"])
+    assert info["dropped_directions"] == 1 and not info["well_conditioned"]
+    assert np.abs(V).max() < 1.0                                  # not 1e18
+    keep = Q[:, :3]                                               # on the identified directions, the usual inverse
+    assert np.allclose(keep.T @ V @ keep, np.diag(1 / np.array([5e3, 40.0, 2.0])))

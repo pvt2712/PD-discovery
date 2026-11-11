@@ -456,20 +456,26 @@ def covariance_checked(H: np.ndarray, max_condition: float = 1e10, names: list |
     """Inverse of the observed information and a report: the smallest eigenvalue, the condition
     number, whether the information was positive definite and well conditioned, and the
     coordinates along any nearly flat direction (typically a variance component at zero, such as
-    a load spread estimated at 0). Directions with non-positive information are dropped
-    (pseudo-inverse), which understates uncertainty along them, so the report must travel with
-    any interval computed from it."""
+    a load spread estimated at 0). Directions whose information is non-positive or below the
+    largest eigenvalue / max_condition are dropped (a truncated pseudo-inverse). Inverting a
+    nearly flat direction would give a parameter the data say almost nothing about a variance of
+    up to 1e19, and that variance swamps every interval drawn from the covariance: on the PPMI
+    proof of concept (D35) the short-duration treatment effects of domains examined only OFF had
+    exactly zero information. Dropping a direction understates uncertainty along it, so the report,
+    with the number of dropped directions, must travel with any interval computed from it."""
     Hs = 0.5 * (H + H.T)
     w, V = np.linalg.eigh(Hs)
     pos = w > 0
+    keep = w > (w.max() / max_condition if w.max() > 0 else np.inf)
     cond = float(w.max() / w[pos].min()) if pos.any() else float("inf")
     info = {"min_eigenvalue": float(w.min()), "condition_number": cond,
-            "positive_definite": bool(pos.all()), "well_conditioned": bool(pos.all() and cond < max_condition)}
+            "positive_definite": bool(pos.all()), "well_conditioned": bool(pos.all() and cond < max_condition),
+            "dropped_directions": int((~keep).sum())}
     flat = []
     for k in np.where(w <= w.max() / max_condition)[0]:
         top = np.argsort(-np.abs(V[:, k]))[:3]
         flat.append({"eigenvalue": float(w[k]),
                      "coordinates": [(names[i] if names else int(i), round(float(V[i, k]), 3)) for i in top]})
     info["flat_directions"] = flat
-    inv_w = np.where(pos, 1.0 / np.where(pos, w, 1.0), 0.0)
+    inv_w = np.where(keep, 1.0 / np.where(keep, w, 1.0), 0.0)
     return (V * inv_w) @ V.T, info

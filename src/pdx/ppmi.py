@@ -448,7 +448,11 @@ CORE_DOMAINS = ["tremor", "brady_rigidity", "axial", "function", "independence",
 TREATED_DOMAINS = ("tremor", "brady_rigidity", "axial", "function")      # §6.1: motor domains and daily function
 
 
-def analysis_panel(part: pd.DataFrame, grid: pd.DataFrame, domains=CORE_DOMAINS, motor_on: bool = False):
+GROUPINGS = ("phenotype", "age_onset", "sex", "rbd")
+
+
+def analysis_panel(part: pd.DataFrame, grid: pd.DataFrame, domains=CORE_DOMAINS, motor_on: bool = False,
+                   group_by: str = "phenotype", rbd_cut: float = 6.0, age_cut: float | None = None):
     """The H-P panel (§2.3, §4, §7.1): TD (0) and PIGD (1) participants of the primary population
     seen at the year-1 landmark, their grid visits from year 1 on, scores on one normal-scores
     transform fitted on the pooled primary population over all visits and groups and then frozen,
@@ -457,7 +461,17 @@ def analysis_panel(part: pd.DataFrame, grid: pd.DataFrame, domains=CORE_DOMAINS,
     examination state. With motor_on (a D5 option), motor domains of ON-only visits enter with
     on = 1. Returns (Panel, NormalScores, info); everything here is participant-level except info,
     which also holds, per domain, the variance on the frozen scale at year 0 (the reference for
-    converting a reliability into an error variance, audit A5) and at the landmark by phenotype."""
+    converting a reliability into an error variance, audit A5) and at the landmark by phenotype.
+
+    group_by (D36) sets the two groups H-P compares. "phenotype" is the above. The others keep the
+    primary population seen at the landmark whatever its motor phenotype (indeterminate included),
+    and are fixed at baseline, never built from an outcome domain: "age_onset" splits at age_cut,
+    by default the median age at onset of the panel's participants (0 younger, 1 older onset);
+    "sex" puts men in 0 and women in 1; "rbd" puts a baseline RBD screening questionnaire score of
+    rbd_cut or more (6, the cut for people with PD) in 1. A grouping variable that is also a speed
+    covariate (age at onset, sex) leaves the covariates, since the group carries it."""
+    if group_by not in GROUPINGS:
+        raise ValueError(f"group_by must be one of {GROUPINGS}")
     from .data import Panel
     from .transforms import NormalScores
 
@@ -470,15 +484,37 @@ def analysis_panel(part: pd.DataFrame, grid: pd.DataFrame, domains=CORE_DOMAINS,
             g.loc[on, dname] = g.loc[on, dname + "_on"]
     ns = NormalScores().fit(g[domains].to_numpy(float))
     var_y0 = np.nanvar(ns.transform(g.loc[g.year == 0, domains].to_numpy(float)), axis=0, ddof=1)
-    keep = prim[prim.phenotype.isin(["TD", "PIGD"]) & prim.reached_y1].index
+    rbd0 = pd.to_numeric(g[g.year == 0].drop_duplicates("PATNO").set_index("PATNO")["rbd"], errors="coerce") \
+        if "rbd" in g.columns else pd.Series(dtype=float)
+    if group_by == "phenotype":
+        keep = prim[prim.phenotype.isin(["TD", "PIGD"]) & prim.reached_y1].index
+    else:
+        known = {"age_onset": prim.age_onset.notna(), "sex": prim.male.notna(),
+                 "rbd": pd.Series(prim.index.map(rbd0.get), index=prim.index).notna()}[group_by]
+        keep = prim[prim.reached_y1 & known].index
     g = g[g.PATNO.isin(keep) & (g.year >= 1)].sort_values(["PATNO", "year"])
     g = g[g.PATNO.map(g.groupby("PATNO").year.min()) == 1]                      # starts at the landmark
     ids = list(dict.fromkeys(g.PATNO))
-    z = pd.DataFrame({"era": (prim.loc[ids, "era"] == "PPMI 2.0").astype(float),
-                      "age_onset": prim.loc[ids, "age_onset"], "male": prim.loc[ids, "male"].astype(float),
-                      "duration": prim.loc[ids, "duration_years"]})
+    covs = {"era": ("era (PPMI 2.0)", (prim.loc[ids, "era"] == "PPMI 2.0").astype(float)),
+            "age_onset": ("age at onset", prim.loc[ids, "age_onset"]),
+            "male": ("male", prim.loc[ids, "male"].astype(float)),
+            "duration": ("duration", prim.loc[ids, "duration_years"])}
+    covs.pop({"age_onset": "age_onset", "sex": "male"}.get(group_by, ""), None)   # the group carries it
+    z = pd.DataFrame({k: v for k, (_, v) in covs.items()})
     z = z.fillna(z.mean())
     z = (z - z.mean()).to_numpy(float)
+    if group_by == "phenotype":
+        group, labels, cut = (prim.loc[ids, "phenotype"] == "PIGD").astype(int).to_numpy(), ["TD", "PIGD"], None
+    elif group_by == "age_onset":
+        cut = float(np.median(prim.loc[ids, "age_onset"])) if age_cut is None else float(age_cut)
+        group = (prim.loc[ids, "age_onset"] >= cut).astype(int).to_numpy()
+        labels = [f"onset before {cut:.1f}", f"onset at {cut:.1f} or later"]
+    elif group_by == "sex":
+        group, labels, cut = (prim.loc[ids, "male"].astype(float) == 0).astype(int).to_numpy(), ["men", "women"], None
+    else:
+        cut = float(rbd_cut)
+        group = (rbd0.reindex(ids).to_numpy(float) >= cut).astype(int)
+        labels = [f"RBD questionnaire below {cut:g}", f"RBD questionnaire {cut:g} or more (probable RBD)"]
     y, t, dose, expo, on, yr = [], [], [], [], [], []
     for pid, rows in g.groupby("PATNO", sort=False):
         y.append(ns.transform(rows[domains].to_numpy(float)))
@@ -487,12 +523,13 @@ def analysis_panel(part: pd.DataFrame, grid: pd.DataFrame, domains=CORE_DOMAINS,
         expo.append(rows.exposure.to_numpy(float) / 100.0)
         on.append((rows.motor_state.eq("ON only") & motor_on).to_numpy(float))
         yr.append(rows.year.to_numpy(int))
-    group = (prim.loc[ids, "phenotype"] == "PIGD").astype(int).to_numpy()
     panel = Panel(y, t, group, z=z, dose=dose, exposure=expo, on=on, domains=list(domains), ids=np.asarray(ids),
                   meta={"source": "PPMI", "motor_on": motor_on}, year=yr)
     y1 = np.array([yi[0] for yi in y])
     var_y1 = {str(k): np.nanvar(y1[group == k], axis=0, ddof=1).tolist() for k in (0, 1)}
-    info = {"domains": list(domains), "covariates": ["era (PPMI 2.0)", "age at onset", "male", "duration"],
+    info = {"domains": list(domains), "covariates": [name for name, _ in covs.values()],
+            "grouping": {"by": group_by, "group_0": labels[0], "group_1": labels[1], "cut": cut,
+                         "participants": [int((group == 0).sum()), int((group == 1).sum())]},
             "treated_domains": [d for d in domains if d in TREATED_DOMAINS], "motor_on": motor_on,
             "counts": panel.aggregate_summary(), "variance_year0": dict(zip(domains, var_y0.tolist())),
             "variance_landmark_by_group": var_y1}

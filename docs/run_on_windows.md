@@ -277,3 +277,30 @@ Experiment 1 is now a proof of concept (`PROTOCOL.md` §19): H-P on four domains
 5. **Send back** `hp_tdpigd_development_d4.json` and `hp_tdpigd_development_d4.log`. They hold aggregates only.
 
 The simulation part of the proof (`scripts/run_poc_simulation.py`) uses synthetic data only and runs on the Mac.
+
+### 7f. Other groupings (D36, 11 November 2026)
+
+H-P is also run with three groupings beside TD/PIGD (`PROTOCOL.md` §19.4): age at onset (median split), probable RBD (RBD screening questionnaire score of 6 or more at baseline) and sex. Each is run on four domains, in that order, and option B (six domains) follows.
+
+1. **Update the code** (7e, step 2). Don't rebuild the tables.
+2. **Optional (about 15 minutes): refresh the TD/PIGD report with the corrected intervals.** Run the 7e command again. It reuses the observed fits and all 39 replicates, and only redoes the speed intervals and the localisation.
+3. **The three 4-domain runs, one after the other, about 15 hours each.** Paste this whole block into PowerShell:
+   ```powershell
+   cd D:\PhD\PD
+   $env:PYTHONUTF8 = "1"
+   $env:PYTHONHASHSEED = "0"
+   $ok = "Investigator, 11 November 2026: D36 groupings (age at onset, probable RBD, sex)"
+   foreach ($g in @(@("age_onset", "d4_age"), @("rbd", "d4_rbd"), @("sex", "d4_sex"))) {
+       .\.venv\Scripts\python.exe scripts\build_analysis_panel.py --set development --domains tremor brady_rigidity axial function --group-by $g[0] --tag $g[1] --approval $ok
+       .\.venv\Scripts\python.exe scripts\run_hp_real.py --set development --tag $g[1] --fixed-map --expert configs\expert_map_poc_d4.json --jobs 6 --approval $ok
+   }
+   ```
+   - **The build** prints the two groups, for example `grouping (age_onset): 0 = onset before 61.9, 1 = onset at 61.9 or later`. Each panel is written beside the others: `panel_tdpigd_development_d4_age.npz` and so on.
+   - **Each run's log** starts with its groups, for example `groups (age_onset): 0 = ..., 1 = ...`. The outputs are `results\wp4\hp_tdpigd_development_d4_age.*`, `_d4_rbd.*` and `_d4_sex.*`. Watch them as in 7d.
+   - **If a run stops,** rerun just that run's two lines. The build gives the same panel, and the run continues from its checkpoint.
+4. **Send back** the three reports and logs (`hp_tdpigd_development_d4_age.json` and `.log`, and the same for `_d4_rbd` and `_d4_sex`). Claude then applies §19.4's rule, which depends only on whether the speed ratio is identified, to choose option B's grouping.
+5. **Option B, about 1.4 days.** These are the commands with age at onset. Replace `age_onset` and `d6_age` if the rule picks RBD or sex:
+   ```powershell
+   .\.venv\Scripts\python.exe scripts\build_analysis_panel.py --set development --domains tremor brady_rigidity axial function independence cognition --group-by age_onset --tag d6_age --approval $ok
+   .\.venv\Scripts\python.exe scripts\run_hp_real.py --set development --tag d6_age --fixed-map --expert configs\expert_map_poc_d6.json --jobs 6 --approval $ok
+   ```

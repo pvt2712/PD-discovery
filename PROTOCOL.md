@@ -4,7 +4,7 @@
 >
 > v0.5 narrows the study to one primary test: whether TD and PIGD share one progression mechanism up to a difference in speed (H-P). Speed itself becomes a family of key secondary estimates (§2.5). v0.5 also takes in an external deep review of v0.4.1. Since v0.4, the protocol has followed the framework recommended in the investigation report (`docs/pathway_heterogeneity_framework.md`): speed-adjusted subgroup causal discovery. Its companion documents are the methods and novelty addendum (`docs/methods_and_novelty_update.md`), the Step 2 methods note (`docs/step2_comparison_methods.md`) and the tsLDiffPC/tsDCI note (`docs/tsldiffpc_tsdci_investigation.md`).
 >
-> **Scope since 10 November 2026 (D35).** Experiment 1 is a proof of concept. H-P and the speed estimates run on four domains with a fixed map, and a simulation at the same size shows the test's false-positive rate and power (§19). The full design below stays as the plan for later work.
+> **Scope since 10 November 2026 (D35).** Experiment 1 is a proof of concept. H-P and the speed estimates run on four domains with a fixed map, and a simulation at the same size shows the test's false-positive rate and power (§19). The full design below stays as the plan for later work. D36 (11 November 2026) adds three groupings beside TD/PIGD: age at onset, sex and probable RBD (§19.4).
 >
 > Appendix D lists the changes from v0.3, v0.4 and v0.4.1, which are archived in `docs/archive/`. Appendix E summarises the synthetic evidence behind the design.
 >
@@ -1334,6 +1334,7 @@ Part I's map informs the choice of confounders; it gives no causal licence by it
 | D33 | The place of this study after Paper 2 moved to effect estimation | This protocol becomes supporting work for the thesis (the experiment 1 paper); Paper 2's protocol is `../escalation-study-v2/PROTOCOL.md`. H-P and the speed estimands run on that protocol's development participants only (its training and validation sets, assigned by a keyed hash of the participant number), so its held-out set stays unread until Paper 2's freeze. The PC full run waits for the participant filter. Everything else here is unchanged | Investigator | 6 November 2026, with the approval of Paper 2's protocol |
 | D34 | The size of the bootstraps on PPMI | The fits cost far more than §8.8 assumed (§8.8, "Measured cost on PPMI"), so on PPMI H-P's bootstrap stops at 39 replicates (Besag–Clifford, h = 20; smallest p 0.025), and that capped bootstrap is H-P's result. The speed estimates get model-based intervals (§2.5), and the χ² p-value is reported beside H-P's as a sensitivity analysis. A larger bootstrap and the participant bootstrap of the speed estimates may follow when the result has been seen. They are sensitivity analyses, reported beside these results and never replacing them. The report always gives the p-value at the cap of 39, from the first replicates in order, however many are drawn later. Fixed before any statistic on the development participants had been seen | Investigator | 7 November 2026 |
 | D35 | Scope of experiment 1 | A proof of concept of the framework (§19). On PPMI, H-P and the speed estimates run on four domains (tremor, bradykinesia–rigidity, axial, daily function), with the fixed map of `configs/expert_map_poc_d4.json`: the provisional map's three links between them plus the four own rates, 6 degrees of freedom, and no Step 1 selection. They keep D34's capped bootstrap and model-based intervals. A simulation at the development panel's size gives H-P's false-positive rate when only speed differs (at most 7.5%) and its power when one link differs. The 10-domain run, stopped on 10 November 2026, is reported beside it as the full-model first look. The other six domains, Step 1's selection, the speed bootstrap, Steps 3–4, the RBD axis, the comparators and the full WP3 are left for later. Fixed before any 4-domain result on PPMI had been seen | Investigator | 10 November 2026 |
+| D36 | Groupings beside TD/PIGD | Age at onset (median split), sex and probable RBD (RBD screening questionnaire score of 6 or more), each fixed at baseline and not built from an outcome domain, run on the 4-domain fixed map in that order (§19.4). Option B (six domains) follows with age at onset, or with RBD and then sex if the age run cannot identify the speed ratio. All groupings are reported, with Holm-adjusted p-values beside the raw ones. Akinetic-rigid/TD, genetic carriers, smell and MoCA- or GDS-based groups are not used. Fixed before any result for these groupings had been seen | Investigator | 11 November 2026 |
 
 ## 18. Timeline (provisional)
 
@@ -1376,6 +1377,31 @@ On 10 November 2026 the investigator re-scoped experiment 1: it is to prove the 
 - **Why the speed is per participant.** Appendix E: a test with one speed per phenotype rejected 10.5% of speed-only cohorts at the base size, and up to 65% at 16 times that size, against 4.6% for the per-participant test.
 
 **19.3 Reporting.** The proof of concept is the simulation (19.2) together with the PPMI result (19.1). The 10-domain run (D33–D34), stopped on 10 November 2026 during its bootstrap, is reported beside it as the full-model first look: its observed statistic with the χ² p-value, the bootstrap not completed.
+
+**19.4 Other groupings (D36, 11 November 2026)**
+- **Why.**
+  - TD/PIGD is a weak grouping for proving the framework. It is unstable: of the participants classed PIGD at year 0, 67% were still PIGD at year 1 and 60% at year 2 in WP0, as Simuni 2016 found in PPMI.
+  - It is built from tremor and gait items that are also outcome domains, so a phenotype's speed is entangled with its year-1 state.
+  - Its smaller group is small (140 PIGD participants in the 4-domain development panel).
+  - Clinicians already tailor decisions mainly by age and gender (van den Heuvel 2022).
+- **The groupings.** All three are fixed at baseline, and none is built from an outcome domain of the 4- or 6-domain maps:
+  - **Age at onset**, split at the median of the panel's participants (61.9 years in the development set). Older onset is expected to progress faster (Pagano 2016).
+  - **Sex.** Men are group 0 and women group 1. Women's daily function is reported to decline more slowly (Iwaki 2021).
+  - **Probable RBD** at baseline: an RBD screening questionnaire score of 6 or more, the cut for people with PD (Nomura 2011). It is a marker of body-first disease.
+- **Population.** The primary population seen at the landmark, whatever its motor phenotype; indeterminate participants are included. On the development participants that is 383 and 384 by age at onset, 497 men and 270 women, and 199 with probable RBD against 567 without.
+- **Model.** A grouping variable that is also a speed covariate (age at onset, sex) leaves the covariates, since the group carries it. Everything else is as in §19.1: the 4-domain fixed map, D34's capped bootstrap and the model-based intervals.
+- **Not used:**
+  - **Akinetic-rigid/TD (Schiess 2000).** It shares both flaws of TD/PIGD: it is built from the tremor and bradykinesia-rigidity domains, and only 56% of its TD group was still TD at year 2.
+  - **GBA and LRRK2 carriers.** There are 15 and 9 among the development participants.
+  - **Smell.** 44% were not tested at baseline.
+  - **Groups by MoCA or depression.** About half change group within a year, and cognition is an outcome of option B.
+- **Reporting.** The four groupings (TD/PIGD and these three) are separate pre-specified questions, and all are reported. Holm-adjusted p-values across the four 4-domain H-P tests are reported beside the raw ones.
+- **Order.** Age at onset first, then probable RBD, then sex, each on four domains.
+- **Option B** follows on six domains, adding independence and cognition. Its map is `configs/expert_map_poc_d6.json`: the provisional map's eight links between them, giving 13 degrees of freedom.
+  - It uses age at onset.
+  - If the 4-domain age run leaves the speed ratio unidentified (its 95% interval spans more than a tenfold range), it uses probable RBD instead, and then sex.
+  - The rule depends only on whether the speed ratio is identified, never on H-P's result.
+- **When fixed.** Before any result for these groupings had been seen.
 
 ## References
 
@@ -1439,6 +1465,7 @@ On 10 November 2026 the investigator re-scoped experiment 1: it is to prove the 
 - Horváth K, Aschermann Z, Kovács M, et al. Minimal clinically important differences for the experiences of daily living parts of movement disorder society–sponsored unified Parkinson's disease rating scale. Mov Disord 2017;32:789–793. doi:10.1002/mds.26960.
 - Huang B, Zhang K, Zhang J, et al. Causal discovery from heterogeneous/nonstationary data. J Mach Learn Res 2020;21(89):1–53.
 - Hyttinen A, Plis S, Järvisalo M, Eberhardt F, Danks D. A constraint optimization approach to causal discovery from subsampled time series data. Int J Approx Reason 2017;90:208–225. doi:10.1016/j.ijar.2017.07.009.
+- Iwaki H, Blauwendraat C, Leonard HL, et al. Differences in the presentation and progression of Parkinson's disease by sex. Mov Disord 2021;36(1):106–117. doi:10.1002/mds.28312.
 - Jankovic J, McDermott M, Carter J, et al. Variable expression of Parkinson's disease: a base-line analysis of the DATATOP cohort. Neurology 1990;40:1529–1534. doi:10.1212/WNL.40.10.1529.
 - Jiang Z, Zhang D. Analysis of variance of multiple causal networks. Adv Neural Inf Process Syst 2023;36:11580–11591. doi:10.52202/075280-0510.
 - Jin R, Yoshioka H, Sato H, Hisaka A. Data-driven disease progression model of Parkinson's disease and effect of sex and genetic variants. CPT Pharmacometrics Syst Pharmacol 2024;13(4):649–659. doi:10.1002/psp4.13112.
@@ -1466,9 +1493,11 @@ On 10 November 2026 the investigator re-scoped experiment 1: it is to prove the 
 - Mulder JD, Hamaker EL. Three extensions of the random intercept cross-lagged panel model. Struct Equ Modeling 2021;28:638–648. doi:10.1080/10705511.2020.1784738.
 - Negida A, Mukhopadhyay N, Berman BD, Barrett MJ. Comparative analysis of progression milestones across Parkinson's disease clinical, pathological, and data-driven subtypes: a 10-year follow-up. NPJ Parkinsons Dis 2026;12:239. doi:10.1038/s41531-026-01430-8.
 - NICE. Parkinson's disease in adults. NICE guideline NG71. London: National Institute for Health and Care Excellence; 2017.
+- Nomura T, Inoue Y, Kagimura T, Uemura Y, Nakashima K. Utility of the REM sleep behavior disorder screening questionnaire (RBDSQ) in Parkinson's disease patients. Sleep Med 2011;12(7):711–713. doi:10.1016/j.sleep.2011.01.015.
 - Nylund KL, Asparouhov T, Muthén BO. Deciding on the number of classes in latent class analysis and growth mixture modeling: a Monte Carlo simulation study. Struct Equ Modeling 2007;14:535–569. doi:10.1080/10705510701575396.
 - Ollier E, Viallon V. Regression modelling on stratified data with the lasso. Biometrika 2017. doi:10.1093/biomet/asw065.
 - Orth U, Meier LL, Bühler JL, et al. Effect size guidelines for cross-lagged effects. Psychol Methods 2024;29:421–433. doi:10.1037/met0000499.
+- Pagano G, Ferrara N, Brooks DJ, Pavese N. Age at onset and Parkinson disease phenotype. Neurology 2016;86(15):1400–1407. doi:10.1212/WNL.0000000000002461.
 - Pal S, Ghosh D, Yang S. Penalized FCI for causal structure learning in a sparse DAG for biomarker discovery in Parkinson's disease. Ann Appl Stat 2026;20:1873–1893. doi:10.1214/26-AOAS2191.
 - Pamfil R, Sriwattanaworachai N, Desai S, et al. DYNOTEARS: structure learning from time-series data. Proc AISTATS 2020, PMLR 108:1595–1605.
 - Pan W, Su C, Maasch JRMA, Chen K, Henchcliffe C, Wang F. Learning phenotypic associations for Parkinson's disease with longitudinal clinical records. AMIA Jt Summits Transl Sci Proc 2024;2024:374–383.
@@ -1491,6 +1520,7 @@ On 10 November 2026 the investigator re-scoped experiment 1: it is to prove the 
 - Runge J. Discovering contemporaneous and lagged causal relations in autocorrelated nonlinear time series datasets. UAI 2020, PMLR 124:1388–1397.
 - Saadawy M, Saadawy E. NeuroCausal prior-weighted structure learning (NCP-WSL): disentangling a shared latent causal manifold across Alzheimer's, Parkinson's and healthy aging. SSRN preprint 2026. doi:10.2139/ssrn.7119099.
 - Saggioro E, de Wiljes J, Kretschmer M, Runge J. Reconstructing regime-dependent causal relationships from observational time series. Chaos 2020;30:113115. doi:10.1063/5.0020538.
+- Schiess MC, Zheng H, Soukup VM, Bonnen JG, Nauta HJ. Parkinson's disease subtypes: clinical classification and ventricular cerebrospinal fluid analysis. Parkinsonism Relat Disord 2000;6(2):69–76. doi:10.1016/S1353-8020(99)00051-6.
 - Schiratti J-B, Allassonnière S, Colliot O, Durrleman S. A Bayesian mixed-effects model to learn trajectories of changes from repeated manifold-valued observations. J Mach Learn Res 2017;18(133):1–33.
 - Schnalke N, Feige T, Hähnel T, et al. Long-duration response to levodopa in the PPMI cohort. Mov Disord 2026;41:2033–2041. doi:10.1002/mds.70344.
 - Schultzberg M, Muthén B. Number of subjects and time points needed for multilevel time-series analysis: a simulation study of dynamic structural equation modeling. Struct Equ Modeling 2018;25:495–515. doi:10.1080/10705511.2017.1392862.
@@ -1507,6 +1537,7 @@ On 10 November 2026 the investigator re-scoped experiment 1: it is to prove the 
 - Swait J, Louviere J. The role of the scale parameter in the estimation and comparison of multinomial logit models. J Mark Res 1993;30:305–314. doi:10.1177/002224379303000303.
 - Tan MMX, Lawton MA, Pollard MI, et al. Genome-wide determinants of mortality and motor progression in Parkinson's disease. NPJ Parkinsons Dis 2024;10:113. doi:10.1038/s41531-024-00729-8.
 - van Borkulo CD, van Bork R, Boschloo L, et al. Comparing network structures on three aspects: a permutation test. Psychol Methods 2023;28:1273–1285. doi:10.1037/met0000476.
+- van den Heuvel L, Meinders MJ, Post B, Bloem BR, Stiggelbout AM. Personalizing decision-making for persons with Parkinson's disease: where do we stand and what to improve? J Neurol 2022;269(7):3569–3578. doi:10.1007/s00415-022-10969-4.
 - Van Loan CF. Computing integrals involving the matrix exponential. IEEE Trans Automat Contr 1978;23(3):395–404. doi:10.1109/TAC.1978.1101743.
 - Varambally S, Ma YA, Yu R. Discovering mixtures of structural causal models from time series data. ICML 2024, PMLR 235:49171–49202.
 - Vasey B, Nagendran M, Campbell B, et al. Reporting guideline for the early-stage clinical evaluation of decision support systems driven by artificial intelligence: DECIDE-AI. Nat Med 2022;28:924–933. doi:10.1038/s41591-022-01772-9.
@@ -1601,6 +1632,15 @@ Aggregates from `../escalation-discovery` (its PROTOCOL.md §3, §10.1 and §12,
 | Provenance | Entry date, correction history, instrument version | Audit trail and quality flags |
 
 ## Appendix D. Changes from v0.3, v0.4 and v0.4.1
+
+**After v0.5 (11 November 2026): D36, groupings beside TD/PIGD.**
+- **The decision.** H-P is also run by age at onset, sex and probable RBD (§19.4), chosen after an aggregate check of the development participants. The check gave the groups' sizes and the stability of the labels that are measured again: `scripts/check_subgroups.py`, with aggregates only and cells under 5 suppressed.
+- **Code:**
+  - `group_by` in `pdx.ppmi.analysis_panel`.
+  - `--group-by`, `--age-cut` and `--rbd-cut` in `scripts/build_analysis_panel.py`. They need `--tag`, so the main panel is never replaced.
+  - The grouping recorded in the panel's spec, and written to the run's log and report.
+  - The 6-domain map in `configs/expert_map_poc_d6.json`.
+- **A fix to the covariance.** `covariance_checked` now drops directions whose information is below the largest eigenvalue divided by 10¹⁰ (a truncated pseudo-inverse). A parameter with no information, such as a short-duration treatment effect on a domain examined only OFF, otherwise received a variance of up to 10¹⁹, which swamped every model-based interval drawn from the covariance.
 
 **After v0.5 (10 November 2026): D35, a proof of concept.**
 - **Why.** On the investigator's PC, the 10-domain run's observed fits took 39.7 hours, and its bootstrap replicates took 2.5–3.5 days each, about three weeks in all. On synthetic data at the same size, one likelihood evaluation costs about a tenth as much at four domains as at ten. A whole fit pair took about 4 minutes on one core.

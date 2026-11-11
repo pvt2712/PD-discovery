@@ -1,0 +1,132 @@
+{
+ "status": "PROOF OF CONCEPT, option B (D36, 11 November 2026): the links of the provisional, investigator-led map (configs/expert_map_provisional.json, D25) between the six domains of option B, taken unchanged, before any 6-domain result on PPMI was seen. Used with --fixed-map: Step 1 adds no links.",
+ "format": "links are [from, to] pairs of domain names, read as: 'from' this year directly changes 'to' next year. Every domain also affects itself (own rates, always in the support). With --fixed-map, H-P's support is exactly these links plus the six own rates: 14 entries, so H-P has (2 - 1) x (14 - 1) = 13 degrees of freedom.",
+ "domains": [
+  "tremor",
+  "brady_rigidity",
+  "axial",
+  "function",
+  "independence",
+  "cognition"
+ ],
+ "links": [
+  [
+   "tremor",
+   "function"
+  ],
+  [
+   "brady_rigidity",
+   "function"
+  ],
+  [
+   "axial",
+   "function"
+  ],
+  [
+   "axial",
+   "independence"
+  ],
+  [
+   "function",
+   "independence"
+  ],
+  [
+   "cognition",
+   "independence"
+  ],
+  [
+   "cognition",
+   "function"
+  ],
+  [
+   "axial",
+   "cognition"
+  ]
+ ],
+ "set_aside_from_the_provisional_map": [
+  [
+   "mood",
+   "function"
+  ],
+  [
+   "mood",
+   "independence"
+  ],
+  [
+   "autonomic",
+   "function"
+  ],
+  [
+   "function",
+   "mood"
+  ],
+  [
+   "rbd",
+   "cognition"
+  ],
+  [
+   "autonomic",
+   "cognition"
+  ]
+ ],
+ "provenance": [
+  {
+   "link": [
+    "tremor",
+    "function"
+   ],
+   "source": "v4.1 motor_na -> adl (STRONG; PMID 18361474, 24711047, 29662921); questionnaire #1",
+   "note": "motor_na includes the tremor items; the function domain leaves out MDS-UPDRS 2.10 (tremor), so there is no part-whole overlap"
+  },
+  {
+   "link": [
+    "brady_rigidity",
+    "function"
+   ],
+   "source": "v4.1 motor_na -> adl (STRONG; as above); questionnaire #2"
+  },
+  {
+   "link": [
+    "axial",
+    "function"
+   ],
+   "source": "v4.1 axial -> adl (STRONG; PMID 18361474 Shulman, 18307261 Hely); questionnaire #3"
+  },
+  {
+   "link": [
+    "axial",
+    "independence"
+   ],
+   "source": "v4.1 axial -> se (STRONG; PMID 18361474, 10968298 Aarsland); questionnaire #5"
+  },
+  {
+   "link": [
+    "function",
+    "independence"
+   ],
+   "source": "v4.1 adl -> se (STRONG; PMID 18361474, 15086662); questionnaire #4"
+  },
+  {
+   "link": [
+    "cognition",
+    "independence"
+   ],
+   "source": "v4.1 cog -> se (STRONG; PMID 23172765, 20310053); questionnaire #10"
+  },
+  {
+   "link": [
+    "cognition",
+    "function"
+   ],
+   "source": "added: the MDS criteria separate mild cognitive impairment (Litvan 2012) from dementia (Emre 2007) by whether cognitive deficits impair daily life; questionnaire #9"
+  },
+  {
+   "link": [
+    "axial",
+    "cognition"
+   ],
+   "source": "added: postural instability and gait difficulty precede faster cognitive decline and dementia (Burn 2006; Alves 2006); questionnaire #16",
+   "note": "may reflect a shared cholinergic deficit rather than a direct effect (questionnaire E3)"
+  }
+ ]
+}
